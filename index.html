@@ -387,7 +387,8 @@
       <button class="lb-btn" title="Rotate right" onclick="rotate(90)">↻</button>
       <button class="lb-btn" title="Zoom out" onclick="zoomBy(-0.25)">－</button>
       <button class="lb-btn" title="Zoom in" onclick="zoomBy(0.25)">＋</button>
-      <button class="lb-btn" title="Reset" onclick="resetTransform()">⤢</button>
+      <button class="lb-btn" title="Reset zoom & rotation" onclick="resetTransform()" style="font-size:13px">Reset</button>
+      <button class="lb-btn" id="fs-btn" title="Fullscreen (F)" onclick="toggleFullscreen()">⛶</button>
       <button class="lb-btn close-btn" title="Close (Esc)" onclick="closeLb()">✕</button>
     </div>
   </div>
@@ -398,7 +399,7 @@
   </div>
   <button class="lb-arrow" id="lb-next" onclick="navigate(1)">›</button>
 
-  <div class="lb-zoom-hint">Scroll to zoom · Drag to pan · ← → to navigate · Esc to close</div>
+  <div class="lb-zoom-hint">Scroll to zoom · Drag to pan · ← → navigate · F fullscreen · Esc close</div>
 </div>
 
 <!-- MANAGE ALBUMS MODAL -->
@@ -586,6 +587,23 @@ function resetTransform(animate) {
   applyTransform(animate);
 }
 
+// ── FULLSCREEN ──
+function toggleFullscreen() {
+  const lb = document.getElementById('lb');
+  const btn = document.getElementById('fs-btn');
+  if (!document.fullscreenElement) {
+    lb.requestFullscreen().then(() => { btn.textContent = '⊡'; btn.title = 'Exit fullscreen (F)'; })
+      .catch(() => alert('Fullscreen not supported in this browser or embed. Try opening the page directly.'));
+  } else {
+    document.exitFullscreen();
+    btn.textContent = '⛶'; btn.title = 'Fullscreen (F)';
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('fs-btn');
+  if (!document.fullscreenElement) { btn.textContent = '⛶'; btn.title = 'Fullscreen (F)'; }
+});
+
 // ── SCROLL TO ZOOM ──
 document.getElementById('lb-img-wrap').addEventListener('wheel', e => {
   e.preventDefault();
@@ -633,6 +651,7 @@ document.addEventListener('keydown', e => {
   if (e.key === '-') zoomBy(-0.25);
   if (e.key === 'r' || e.key === 'R') rotate(90);
   if (e.key === '0') resetTransform();
+  if (e.key === 'f' || e.key === 'F') toggleFullscreen();
 });
 
 // ── ADD PANEL TOGGLE ──
