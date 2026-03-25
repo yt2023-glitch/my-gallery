@@ -353,6 +353,266 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ── NAV TABS (Photos / Videos) ── */
+  .section-nav {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--border);
+    padding: 0 40px;
+    background: var(--bg);
+  }
+  .section-nav-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 14px 22px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+    letter-spacing: 0.01em;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .section-nav-btn:hover { color: var(--accent); }
+  .section-nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── VIDEO SECTION ── */
+  #video-section { display: none; padding: 28px 40px; }
+  #video-section.active { display: block; }
+  #photos-section { display: block; }
+  #photos-section.hidden { display: none; }
+
+  .video-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .video-section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    color: var(--accent2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .video-section-title small { font-size: 13px; color: var(--muted); font-family: 'DM Sans', sans-serif; }
+
+  /* Add Video Panel */
+  .add-video-panel {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+    gap: 14px;
+    flex-direction: column;
+  }
+  .add-video-panel.open { display: flex; }
+  .add-video-panel h3 { font-size: 15px; color: var(--accent2); font-family: 'Playfair Display', serif; }
+  .video-input-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .how-to-hint {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .how-to-hint b { color: var(--accent2); }
+  .how-to-hint code {
+    background: var(--surface2);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  /* Video Grid */
+  .video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+  }
+  .video-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .video-card:hover { border-color: var(--accent); }
+  .video-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .video-card-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(100% - 80px);
+  }
+  .video-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .vc-btn {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text);
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, color 0.2s;
+    flex-shrink: 0;
+  }
+  .vc-btn:hover { background: rgba(200,169,110,0.2); color: var(--accent); }
+  .vc-btn.danger:hover { background: rgba(192,57,43,0.25); color: #e74c3c; }
+
+  /* ── VIDEO PLAYER CARD ── */
+  .fp-wrap {
+    background: #000;
+    border-radius: 0 0 10px 10px;
+    overflow: hidden;
+    position: relative;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .fp-wrap video {
+    width: 100%;
+    display: block;
+    border-radius: 0 0 10px 10px;
+    transition: transform 0.35s ease;
+    transform-origin: center center;
+    max-height: 340px;
+    background: #000;
+  }
+
+  /* Rotate + Fullscreen overlay controls */
+  .video-overlay-controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .video-card:hover .video-overlay-controls { opacity: 1; }
+
+  /* Fullscreen video viewer */
+  #vfs {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.97);
+    z-index: 99999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #vfs.open { display: flex; }
+  .vfs-top {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.85), transparent);
+    z-index: 10;
+  }
+  .vfs-title { font-size: 14px; color: rgba(255,255,255,0.8); }
+  .vfs-controls { display: flex; gap: 8px; align-items: center; }
+  .vfs-btn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    width: 38px; height: 38px;
+    border-radius: 8px;
+    font-size: 17px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+  }
+  .vfs-btn:hover { background: rgba(255,255,255,0.22); }
+  .vfs-rotate-label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+    min-width: 38px;
+    text-align: center;
+  }
+  #vfs-inner {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  #vfs-frame-wrap {
+    transition: transform 0.35s ease;
+    transform-origin: center center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 90vw;
+    max-width: 960px;
+  }
+  #vfs-video-wrap {
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+  }
+  #vfs-video {
+    width: 100%;
+    max-height: 82vh;
+    display: block;
+    outline: none;
+    background: #000;
+  }
+  .vfs-hint {
+    position: fixed;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .video-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-size: 14px;
+    grid-column: 1/-1;
+  }
+  .video-empty svg { display: block; margin: 0 auto 12px; opacity: 0.3; }
+
+  @media (max-width: 600px) {
+    .section-nav { padding: 0 16px; }
+    #video-section { padding: 16px; }
+    .video-grid { grid-template-columns: 1fr; }
+  }
+
   /* ── SORT & FILTER BAR ── */
   .sort-filter-bar {
     padding: 12px 40px;
@@ -528,6 +788,15 @@
   </div>
 </header>
 
+<!-- SECTION NAV -->
+<nav class="section-nav" id="section-nav">
+  <button class="section-nav-btn active" id="nav-photos" onclick="switchSection('photos')">🖼 Photos</button>
+  <button class="section-nav-btn" id="nav-videos" onclick="switchSection('videos')">▶ Videos</button>
+</nav>
+
+<!-- ===== PHOTOS SECTION ===== -->
+<div id="photos-section">
+
 <!-- ADD PHOTO PANEL -->
 <div class="add-panel" id="add-panel">
   <h3>Add a Photo</h3>
@@ -626,6 +895,64 @@
 </div>
 
 <!-- MANAGE ALBUMS MODAL -->
+</div><!-- end #photos-section -->
+
+<!-- ===== VIDEO SECTION ===== -->
+<div id="video-section">
+  <div class="video-section-header">
+    <div class="video-section-title">Videos <small id="video-count"></small></div>
+    <button class="btn primary" onclick="toggleAddVideoPanel()">＋ Add Video</button>
+  </div>
+
+  <!-- ADD VIDEO PANEL -->
+  <div class="add-video-panel" id="add-video-panel">
+    <h3>Add a Video</h3>
+
+    <div class="how-to-hint">
+      <b>How to get a GitHub Release video URL:</b><br>
+      1. Go to your GitHub repo → <code>Releases</code> → <code>Edit</code> (or create a new release)<br>
+      2. Drag & drop your <code>.mp4</code> file into the <b>Assets</b> section at the bottom<br>
+      3. After upload, right-click the file name → <b>Copy link address</b><br>
+      4. Paste the URL below — it will look like:<br>
+      &nbsp;&nbsp;<code>https://github.com/USER/REPO/releases/download/TAG/video.mp4</code><br><br>
+      Also supports any direct <code>.mp4</code> / <code>.webm</code> / <code>.ogg</code> / <code>.m3u8</code> URL.
+    </div>
+
+    <div class="video-input-row">
+      <input class="field" id="vid-url" placeholder="https://github.com/.../video.mp4 or any direct video URL" style="flex:2;min-width:220px">
+      <input class="field" id="vid-title" placeholder="Video title (optional)" style="flex:1;min-width:160px">
+    </div>
+    <div class="row">
+      <button class="btn primary" onclick="addVideo()" style="flex:0 0 auto">▶ Add to Gallery</button>
+      <button class="btn" onclick="toggleAddVideoPanel()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- VIDEO GRID -->
+  <div class="video-grid" id="video-grid"></div>
+</div>
+
+<!-- VIDEO FULLSCREEN VIEWER -->
+<div id="vfs">
+  <div class="vfs-top">
+    <div class="vfs-title" id="vfs-title">Video</div>
+    <div class="vfs-controls">
+      <button class="vfs-btn" title="Rotate left (R)"  onclick="vfsRotate(-90)">↺</button>
+      <span class="vfs-rotate-label" id="vfs-rot-label">0°</span>
+      <button class="vfs-btn" title="Rotate right"     onclick="vfsRotate(90)">↻</button>
+      <button class="vfs-btn" title="Close (Esc)"      onclick="closeVfs()" style="font-size:20px">✕</button>
+    </div>
+  </div>
+  <div id="vfs-inner">
+    <div id="vfs-frame-wrap">
+      <div id="vfs-video-wrap">
+        <video id="vfs-video" controls playsinline preload="metadata"></video>
+      </div>
+    </div>
+  </div>
+  <div class="vfs-hint">↺ ↻ Rotate &nbsp;·&nbsp; Esc Close</div>
+</div>
+
 <div id="album-modal">
   <div class="modal-box">
     <h3>Manage Albums</h3>
@@ -1194,8 +1521,302 @@ async function loadGallery() {
   renderAll();
 }
 
+
+
+// ══════════════════════════════════════
+// ── SECTION SWITCHING ──
+// ══════════════════════════════════════
+function switchSection(sec) {
+  const photosSec = document.getElementById('photos-section');
+  const videoSec  = document.getElementById('video-section');
+  const navP      = document.getElementById('nav-photos');
+  const navV      = document.getElementById('nav-videos');
+  const toolbar   = document.querySelector('.toolbar');
+  const sortBar   = document.querySelector('.sort-filter-bar');
+
+  if (sec === 'videos') {
+    photosSec.classList.add('hidden');
+    videoSec.classList.add('active');
+    navP.classList.remove('active');
+    navV.classList.add('active');
+    if (toolbar) toolbar.style.display = 'none';
+    if (sortBar) sortBar.style.display = 'none';
+    renderVideoGrid();
+  } else {
+    videoSec.classList.remove('active');
+    photosSec.classList.remove('hidden');
+    navP.classList.add('active');
+    navV.classList.remove('active');
+    if (toolbar) toolbar.style.display = '';
+    if (sortBar) sortBar.style.display = '';
+  }
+}
+
+// ══════════════════════════════════════
+// ── FLUIDPLAYER LOADER ──
+// ══════════════════════════════════════
+let fpScriptLoaded = false;
+let fpStyleLoaded  = false;
+const fpPlayers = {}; // store FluidPlayer instances by video id
+
+function loadFluidPlayer(cb) {
+  if (fpScriptLoaded) { cb(); return; }
+
+  // CSS
+  if (!fpStyleLoaded) {
+    const link = document.createElement('link');
+    link.rel  = 'stylesheet';
+    link.href = 'https://cdn.fluidplayer.com/v3/current/fluidplayer.min.css';
+    document.head.appendChild(link);
+    fpStyleLoaded = true;
+  }
+
+  // JS
+  const s = document.createElement('script');
+  s.src = 'https://cdn.fluidplayer.com/v3/current/fluidplayer.min.js';
+  s.onload = () => { fpScriptLoaded = true; cb(); };
+  document.head.appendChild(s);
+}
+
+function initFluidPlayer(videoEl, videoId) {
+  if (!window.fluidPlayer) return;
+  if (fpPlayers[videoId]) return; // already initialised
+  fpPlayers[videoId] = fluidPlayer(videoEl, {
+    layoutControls: {
+      primaryColor:       '#c8a96e',
+      fillToContainer:    true,
+      autoPlay:           false,
+      mute:               false,
+      loop:               false,
+      allowTheatre:       false,
+      playButtonShowing:  true,
+      playPauseAnimation: true,
+      controlBar: {
+        autoHide:        true,
+        autoHideTimeout: 3,
+      },
+      miniPlayer: { enabled: false },
+      contextMenu: { controls: true }
+    },
+    vastLoadedCallback:    null,
+    noSupportedMediaCallback: null,
+  });
+}
+
+// ══════════════════════════════════════
+// ── VIDEO DATA (localStorage) ──
+// ══════════════════════════════════════
+function loadVideos() {
+  try { return JSON.parse(localStorage.getItem('gallery_videos') || '[]'); } catch(e) { return []; }
+}
+function saveVideos(arr) {
+  localStorage.setItem('gallery_videos', JSON.stringify(arr));
+}
+
+// ── Detect video type from URL ──
+function videoMimeType(url) {
+  if (/\.m3u8(\?|$)/i.test(url)) return 'application/x-mpegURL';
+  if (/\.mpd(\?|$)/i.test(url))  return 'application/dash+xml';
+  if (/\.webm(\?|$)/i.test(url)) return 'video/webm';
+  if (/\.ogg(\?|$)/i.test(url))  return 'video/ogg';
+  return 'video/mp4'; // default — covers GitHub release .mp4
+}
+
+// ── Validate URL looks like a direct video ──
+function looksLikeVideoUrl(url) {
+  return /\.(mp4|webm|ogg|m3u8|mpd|mov)(\?|#|$)/i.test(url) ||
+         /github\.com\/.+\/releases\/download\//i.test(url) ||
+         /raw\.githubusercontent\.com/i.test(url);
+}
+
+function toggleAddVideoPanel() {
+  document.getElementById('add-video-panel').classList.toggle('open');
+  if (document.getElementById('add-video-panel').classList.contains('open')) {
+    setTimeout(() => document.getElementById('vid-url').focus(), 80);
+  }
+}
+
+function addVideo() {
+  const url   = document.getElementById('vid-url').value.trim();
+  const title = document.getElementById('vid-title').value.trim() || 'Video';
+
+  if (!url) { showToast('Please paste a video URL.', true); return; }
+  if (!looksLikeVideoUrl(url)) {
+    showToast('That doesn\'t look like a direct video URL (.mp4, .webm, GitHub release link…)', true);
+    return;
+  }
+
+  const videos = loadVideos();
+  const id = Date.now();
+  if (videos.find(v => v.url === url)) {
+    showToast('That video is already in the gallery.', true); return;
+  }
+
+  videos.push({ id, url, title, rotation: 0, added: id });
+  saveVideos(videos);
+  document.getElementById('vid-url').value   = '';
+  document.getElementById('vid-title').value = '';
+  document.getElementById('add-video-panel').classList.remove('open');
+  showToast('Video added! ✓');
+  renderVideoGrid();
+}
+
+function deleteVideo(id) {
+  if (!confirm('Remove this video?')) return;
+  // Destroy FluidPlayer instance if exists
+  if (fpPlayers[id]) {
+    try { fpPlayers[id].destroy(); } catch(e) {}
+    delete fpPlayers[id];
+  }
+  const videos = loadVideos().filter(v => v.id !== id);
+  saveVideos(videos);
+  renderVideoGrid();
+  showToast('Video removed.');
+}
+
+function renderVideoGrid() {
+  const grid   = document.getElementById('video-grid');
+  const count  = document.getElementById('video-count');
+  const videos = loadVideos();
+  count.textContent = `${videos.length} video${videos.length !== 1 ? 's' : ''}`;
+
+  if (!videos.length) {
+    grid.innerHTML = `<div class="video-empty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+      No videos yet.<br>Click <b style="color:var(--accent2)">＋ Add Video</b> and paste a GitHub release or direct video URL.
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = '';
+
+  loadFluidPlayer(() => {
+    videos.slice().reverse().forEach(v => {
+      const mime  = videoMimeType(v.url);
+      const vidId = `fp-${v.id}`;
+      const card  = document.createElement('div');
+      card.className = 'video-card';
+      card.id = `card-${v.id}`;
+      card.innerHTML = `
+        <div class="video-card-header">
+          <span class="video-card-title" title="${v.title}">${v.title}</span>
+          <div class="video-card-actions">
+            <button class="vc-btn" title="Rotate left"  onclick="rotateVideoCard(${v.id}, -90)">↺</button>
+            <button class="vc-btn" title="Rotate right" onclick="rotateVideoCard(${v.id},  90)">↻</button>
+            <button class="vc-btn" title="Open fullscreen viewer" onclick="openVfs(${v.id})">⛶</button>
+            <button class="vc-btn danger" title="Remove" onclick="deleteVideo(${v.id})">✕</button>
+          </div>
+        </div>
+        <div class="fp-wrap" id="wrap-${v.id}">
+          <video id="${vidId}"
+            style="transform:rotate(${v.rotation||0}deg)"
+            preload="metadata"
+            playsinline>
+            <source src="${v.url}" type="${mime}">
+            Your browser does not support this video format.
+          </video>
+        </div>`;
+      grid.appendChild(card);
+
+      // Init FluidPlayer on this video element
+      const el = document.getElementById(vidId);
+      if (el && window.fluidPlayer) initFluidPlayer(el, v.id);
+    });
+  });
+}
+
+// ── Per-card rotation (rotates only the <video>, not the controls) ──
+function rotateVideoCard(id, deg) {
+  const videos = loadVideos();
+  const v = videos.find(v => v.id === id);
+  if (!v) return;
+  v.rotation = ((v.rotation || 0) + deg + 360) % 360;
+  saveVideos(videos);
+  const el = document.querySelector(`#wrap-${id} video`);
+  if (el) el.style.transform = `rotate(${v.rotation}deg)`;
+}
+
+// ══════════════════════════════════════
+// ── VIDEO FULLSCREEN VIEWER (VFS) ──
+// ══════════════════════════════════════
+let vfsId = null, vfsRot = 0, vfsFpInstance = null;
+
+function openVfs(id) {
+  const videos = loadVideos();
+  const v = videos.find(v => v.id === id);
+  if (!v) return;
+
+  vfsId  = id;
+  vfsRot = v.rotation || 0;
+
+  const vfsVideo = document.getElementById('vfs-video');
+  // Clear old source
+  vfsVideo.pause();
+  vfsVideo.removeAttribute('src');
+  vfsVideo.innerHTML = `<source src="${v.url}" type="${videoMimeType(v.url)}">`;
+  vfsVideo.load();
+
+  document.getElementById('vfs-title').textContent     = v.title;
+  document.getElementById('vfs-rot-label').textContent = vfsRot + '°';
+  document.getElementById('vfs-frame-wrap').style.transform = `rotate(${vfsRot}deg)`;
+  document.getElementById('vfs').classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  // Init FluidPlayer in fullscreen viewer
+  loadFluidPlayer(() => {
+    if (vfsFpInstance) { try { vfsFpInstance.destroy(); } catch(e) {} vfsFpInstance = null; }
+    if (window.fluidPlayer) {
+      vfsFpInstance = fluidPlayer('vfs-video', {
+        layoutControls: {
+          primaryColor:      '#c8a96e',
+          fillToContainer:   true,
+          autoPlay:          true,
+          loop:              false,
+          allowTheatre:      false,
+          miniPlayer:        { enabled: false },
+          controlBar:        { autoHide: true, autoHideTimeout: 3 },
+        }
+      });
+    }
+  });
+}
+
+function closeVfs() {
+  const vfsVideo = document.getElementById('vfs-video');
+  if (vfsFpInstance) { try { vfsFpInstance.destroy(); } catch(e) {} vfsFpInstance = null; }
+  vfsVideo.pause();
+  vfsVideo.removeAttribute('src');
+  vfsVideo.innerHTML = '';
+  document.getElementById('vfs').classList.remove('open');
+  document.body.style.overflow = '';
+  vfsId = null;
+}
+
+function vfsRotate(deg) {
+  vfsRot = (vfsRot + deg + 360) % 360;
+  document.getElementById('vfs-frame-wrap').style.transform = `rotate(${vfsRot}deg)`;
+  document.getElementById('vfs-rot-label').textContent = vfsRot + '°';
+  // Persist rotation
+  if (vfsId) {
+    const videos = loadVideos();
+    const v = videos.find(v => v.id === vfsId);
+    if (v) { v.rotation = vfsRot; saveVideos(videos); }
+    const el = document.querySelector(`#wrap-${vfsId} video`);
+    if (el) el.style.transform = `rotate(${vfsRot}deg)`;
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('vfs').classList.contains('open')) return;
+  if (e.key === 'Escape') closeVfs();
+  if (e.key === 'r' || e.key === 'R') vfsRotate(90);
+});
+
 // ── INIT ──
 document.getElementById('pw-input').focus();
+
 </script>
 </body>
 </html>
