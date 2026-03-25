@@ -440,6 +440,7 @@ let lbIndex = 0;
 let lbPhotos = [];
 let rot = 0, scale = 1, panX = 0, panY = 0;
 let isDragging = false, startX, startY, startPanX, startPanY;
+const rotationMap = {}; // stores rotation per photo keyed by photo.added
 
 // ── API HELPERS ──
 async function apiGet() {
@@ -624,7 +625,10 @@ function showLbPhoto() {
   const p = lbPhotos[lbIndex];
   const img = document.getElementById('lb-img');
   img.classList.add('fade');
-  resetTransform(false);
+  // Restore saved rotation for this photo, default to 0
+  rot = rotationMap[p.added] || 0;
+  scale = 1; panX = 0; panY = 0;
+  applyTransform(false);
   setTimeout(() => {
     img.src = p.url;
     img.classList.remove('fade');
@@ -648,7 +652,13 @@ function applyTransform(animate) {
   img.style.transform = `translate(${panX}px, ${panY}px) rotate(${rot}deg) scale(${scale})`;
   if (!!document.fullscreenElement) applyFsImageSize();
 }
-function rotate(deg) { rot += deg; applyTransform(); }
+function rotate(deg) {
+  rot += deg;
+  // Save this rotation for the current photo
+  const p = lbPhotos[lbIndex];
+  if (p) rotationMap[p.added] = rot;
+  applyTransform();
+}
 function zoomBy(delta) {
   scale = Math.max(0.2, Math.min(8, scale + delta));
   applyTransform();
