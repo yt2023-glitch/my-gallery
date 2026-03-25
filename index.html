@@ -658,44 +658,47 @@ function resetTransform(animate) {
 }
 
 // ── FULLSCREEN ──
-function toggleFullscreen() {
-  const lb = document.getElementById('lb');
+function setFsStyles(on) {
+  const img = document.getElementById('lb-img');
+  const wrap = document.getElementById('lb-img-wrap');
   const btn = document.getElementById('fs-btn');
-  const isFs = !!document.fullscreenElement;
-
-  if (!isFs) {
-    lb.requestFullscreen()
-      .then(() => {
-        lb.classList.add('is-fullscreen');
-        btn.textContent = '⊡';
-        btn.title = 'Exit fullscreen (F)';
-      })
-      .catch(() => {
-        // Fallback: if browser blocks requestFullscreen (e.g. iframe),
-        // just apply the CSS class manually to stretch the image
-        lb.classList.add('is-fullscreen');
-        btn.textContent = '⊡';
-        btn.title = 'Exit fullscreen (F)';
-      });
+  if (on) {
+    img.style.maxWidth  = '100vw';
+    img.style.maxHeight = '100vh';
+    img.style.width     = '100vw';
+    img.style.height    = '100vh';
+    img.style.borderRadius = '0';
+    wrap.style.width  = '100vw';
+    wrap.style.height = '100vh';
+    btn.textContent = '⊡';
+    btn.title = 'Exit fullscreen (F)';
   } else {
-    document.exitFullscreen();
-    lb.classList.remove('is-fullscreen');
+    img.style.maxWidth  = '92vw';
+    img.style.maxHeight = '88vh';
+    img.style.width     = '';
+    img.style.height    = '';
+    img.style.borderRadius = '4px';
+    wrap.style.width  = '100vw';
+    wrap.style.height = '100vh';
     btn.textContent = '⛶';
     btn.title = 'Fullscreen (F)';
   }
 }
-document.addEventListener('fullscreenchange', () => {
+
+function toggleFullscreen() {
   const lb = document.getElementById('lb');
-  const btn = document.getElementById('fs-btn');
   if (!document.fullscreenElement) {
-    lb.classList.remove('is-fullscreen');
-    btn.textContent = '⛶';
-    btn.title = 'Fullscreen (F)';
+    lb.requestFullscreen()
+      .then(() => setFsStyles(true))
+      .catch(() => setFsStyles(true)); // fallback for iframe/embed
   } else {
-    lb.classList.add('is-fullscreen');
-    btn.textContent = '⊡';
-    btn.title = 'Exit fullscreen (F)';
+    document.exitFullscreen();
+    setFsStyles(false);
   }
+}
+
+document.addEventListener('fullscreenchange', () => {
+  setFsStyles(!!document.fullscreenElement);
 });
 
 // ── SCROLL TO ZOOM ──
