@@ -646,6 +646,7 @@ function applyTransform(animate) {
   const img = document.getElementById('lb-img');
   img.style.transition = animate === false ? 'none' : 'transform 0.25s ease';
   img.style.transform = `translate(${panX}px, ${panY}px) rotate(${rot}deg) scale(${scale})`;
+  if (!!document.fullscreenElement) applyFsImageSize();
 }
 function rotate(deg) { rot += deg; applyTransform(); }
 function zoomBy(delta) {
@@ -658,28 +659,45 @@ function resetTransform(animate) {
 }
 
 // ── FULLSCREEN ──
+function applyFsImageSize() {
+  const img = document.getElementById('lb-img');
+  // Normalise rotation to 0–359
+  const normalRot = ((rot % 360) + 360) % 360;
+  const isSideways = normalRot === 90 || normalRot === 270;
+  if (isSideways) {
+    // Image is visually landscape but CSS still thinks it's portrait.
+    // Set width = screen height and height = screen width so it fills correctly.
+    img.style.width     = '100vh';
+    img.style.height    = '100vw';
+    img.style.maxWidth  = '100vh';
+    img.style.maxHeight = '100vw';
+  } else {
+    img.style.width     = '100vw';
+    img.style.height    = '100vh';
+    img.style.maxWidth  = '100vw';
+    img.style.maxHeight = '100vh';
+  }
+  img.style.borderRadius = '0';
+}
+
 function setFsStyles(on) {
   const img = document.getElementById('lb-img');
   const wrap = document.getElementById('lb-img-wrap');
   const btn = document.getElementById('fs-btn');
   if (on) {
-    img.style.maxWidth  = '100vw';
-    img.style.maxHeight = '100vh';
-    img.style.width     = '100vw';
-    img.style.height    = '100vh';
-    img.style.borderRadius = '0';
     wrap.style.width  = '100vw';
     wrap.style.height = '100vh';
+    applyFsImageSize();
     btn.textContent = '⊡';
     btn.title = 'Exit fullscreen (F)';
   } else {
-    img.style.maxWidth  = '92vw';
-    img.style.maxHeight = '88vh';
-    img.style.width     = '';
-    img.style.height    = '';
+    img.style.maxWidth     = '92vw';
+    img.style.maxHeight    = '88vh';
+    img.style.width        = '';
+    img.style.height       = '';
     img.style.borderRadius = '4px';
-    wrap.style.width  = '100vw';
-    wrap.style.height = '100vh';
+    wrap.style.width       = '100vw';
+    wrap.style.height      = '100vh';
     btn.textContent = '⛶';
     btn.title = 'Fullscreen (F)';
   }
