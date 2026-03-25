@@ -353,6 +353,60 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ── SORT & FILTER BAR ── */
+  .sort-filter-bar {
+    padding: 12px 40px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 180px;
+  }
+  .search-icon {
+    position: absolute;
+    left: 12px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 16px;
+    pointer-events: none;
+  }
+  .search-field {
+    width: 100%;
+    padding-left: 34px !important;
+    padding-right: 32px !important;
+  }
+  .search-clear {
+    position: absolute;
+    right: 8px; top: 50%;
+    transform: translateY(-50%);
+    background: none; border: none;
+    color: var(--muted); cursor: pointer;
+    font-size: 13px; padding: 2px 4px;
+    display: none;
+  }
+  .search-clear:hover { color: var(--text); }
+  .sort-select {
+    width: auto;
+    min-width: 140px;
+    flex: 0 0 auto;
+  }
+  .filter-active-badge {
+    font-size: 11px;
+    background: var(--accent);
+    color: #1a1200;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 500;
+  }
+  @media (max-width: 600px) {
+    .sort-filter-bar { padding: 10px 16px; }
+  }
+
   /* ── DRAG DROP ── */
   #drop-zone {
     border: 2px dashed var(--border);
@@ -522,6 +576,20 @@
 <!-- TOOLBAR -->
 <div class="toolbar">
   <div class="album-tabs" id="tabs"></div>
+</div>
+
+<!-- SORT & FILTER BAR -->
+<div class="sort-filter-bar">
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input class="field search-field" id="search-input" placeholder="Filter by name…" oninput="renderGrid()">
+    <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
+  </div>
+  <select class="field sort-select" id="sort-select" onchange="renderGrid()">
+    <option value="newest">Newest first</option>
+    <option value="oldest">Oldest first</option>
+    <option value="random">Random</option>
+  </select>
 </div>
 
 <!-- GALLERY -->
@@ -817,21 +885,57 @@ async function deletePhoto(id) {
   showToast('Photo removed.');
 }
 
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  renderGrid();
+}
+
 function getVisible() {
-  return currentAlbum === 'all' ? [...data.photos] : data.photos.filter(p => p.album === currentAlbum);
+  const query = document.getElementById('search-input')?.value.trim().toLowerCase() || '';
+  const sort = document.getElementById('sort-select')?.value || 'newest';
+
+  // Show/hide clear button
+  const clearBtn = document.getElementById('search-clear');
+  if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
+
+  // Filter by album
+  let photos = currentAlbum === 'all' ? [...data.photos] : data.photos.filter(p => p.album === currentAlbum);
+
+  // Filter by search query
+  if (query) {
+    photos = photos.filter(p => p.name.toLowerCase().includes(query));
+  }
+
+  // Sort
+  if (sort === 'newest') {
+    photos.sort((a, b) => b.added - a.added);
+  } else if (sort === 'oldest') {
+    photos.sort((a, b) => a.added - b.added);
+  } else if (sort === 'random') {
+    for (let i = photos.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [photos[i], photos[j]] = [photos[j], photos[i]];
+    }
+  }
+
+  return photos;
 }
 
 function renderGrid() {
   const grid = document.getElementById('grid');
   const label = document.getElementById('album-label');
   const count = document.getElementById('photo-count');
+  const query = document.getElementById('search-input')?.value.trim() || '';
   const visible = getVisible();
 
   label.childNodes[0].textContent = currentAlbum === 'all' ? 'All Photos ' : currentAlbum + ' ';
-  count.textContent = `${visible.length} photo${visible.length !== 1 ? 's' : ''}`;
+  count.textContent = `${visible.length} photo${visible.length !== 1 ? 's' : ''}${query ? ` matching "${query}"` : ''}`;
 
   if (!visible.length) {
-    grid.innerHTML = `<div class="empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>No photos here yet. Click "Add Photo" to get started.</div>`;
+    grid.innerHTML = query
+      ? `<div class="empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>No photos match "<b>${query}</b>"</div>`
+      : `<div class="empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>No photos here yet. Click "Add Photo" to get started.</div>`;
     return;
   }
 
@@ -839,9 +943,13 @@ function renderGrid() {
   visible.forEach((p, i) => {
     const div = document.createElement('div');
     div.className = 'thumb';
+    // Highlight matching text in name
+    const displayName = query
+      ? p.name.replace(new RegExp(`(${query})`, 'gi'), '<mark style="background:var(--accent);color:#1a1200;border-radius:2px;padding:0 2px">$1</mark>')
+      : p.name;
     div.innerHTML = `
       <img src="${p.url}" alt="${p.name}" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22><rect width=%22200%22 height=%22200%22 fill=%22%23222%22/><text x=%2250%%22 y=%2250%%22 fill=%22%23555%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 font-size=%2213%22>Load failed</text></svg>'">
-      <div class="thumb-overlay"><span class="thumb-name">${p.name}</span></div>
+      <div class="thumb-overlay"><span class="thumb-name">${displayName}</span></div>
       <button class="thumb-del" title="Remove" onclick="event.stopPropagation();deletePhoto(${p.added})">✕</button>`;
     div.addEventListener('click', () => openLb(i, visible));
     grid.appendChild(div);
