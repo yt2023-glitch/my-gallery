@@ -353,6 +353,40 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ── DRAG DROP ── */
+  #drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  #drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(200,169,110,0.07);
+  }
+  #drop-icon { font-size: 32px; }
+  #drop-text { font-size: 14px; color: var(--muted); }
+  #progress-bar-wrap {
+    background: var(--surface2);
+    border-radius: 999px;
+    height: 6px;
+    overflow: hidden;
+  }
+  #progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+  #progress-label { font-size: 13px; color: var(--muted); text-align: center; margin-top: 6px; }
+
   /* ── PASSWORD SCREEN ── */
   #pw-screen {
     position: fixed; inset: 0;
@@ -443,15 +477,46 @@
 <!-- ADD PHOTO PANEL -->
 <div class="add-panel" id="add-panel">
   <h3>Add a Photo</h3>
-  <div class="row">
-    <input class="field" id="inp-url" placeholder="Paste image URL (from any free host)" style="flex:2">
-    <input class="field" id="inp-name" placeholder="Photo name (optional)">
+
+  <!-- DRAG DROP ZONE -->
+  <div id="drop-zone">
+    <div id="drop-icon">📂</div>
+    <div id="drop-text">Drag & drop an image here</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px">or</div>
+    <label class="btn" style="cursor:pointer;margin-top:6px">
+      Browse file <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileSelect(this.files[0])">
+    </label>
   </div>
-  <div class="row">
-    <select class="field" id="inp-album"></select>
-    <button class="btn primary" onclick="addPhoto()" style="flex:0 0 auto">Add to Gallery</button>
+
+  <!-- UPLOAD PROGRESS -->
+  <div id="upload-progress" style="display:none">
+    <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+    <div id="progress-label">Uploading to ImgBB…</div>
   </div>
-  <p class="hint">Supports: ImgBB, Postimages, Flickr direct links, Google Drive (public), or any direct image URL ending in .jpg/.png/.webp etc.</p>
+
+  <!-- PREVIEW & NAME FIELDS (shown after file picked) -->
+  <div id="upload-meta" style="display:none">
+    <div class="row" style="align-items:center;gap:12px">
+      <img id="upload-preview" src="" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+        <input class="field" id="inp-name" placeholder="Photo name">
+        <select class="field" id="inp-album"></select>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn primary" onclick="uploadToImgBB()" style="flex:1;justify-content:center">⬆ Upload & Add to Gallery</button>
+      <button class="btn" onclick="cancelUpload()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- URL fallback -->
+  <details style="margin-top:4px">
+    <summary style="font-size:12px;color:var(--muted);cursor:pointer">Or paste a URL manually</summary>
+    <div class="row" style="margin-top:10px">
+      <input class="field" id="inp-url" placeholder="Paste direct image URL" style="flex:2">
+      <button class="btn primary" onclick="addPhotoByUrl()" style="flex:0 0 auto">Add</button>
+    </div>
+  </details>
 </div>
 
 <!-- TOOLBAR -->
@@ -627,20 +692,120 @@ function deleteAlbum(i) {
 }
 
 // ── PHOTOS ──
-async function addPhoto() {
-  const url = document.getElementById('inp-url').value.trim();
-  const name = document.getElementById('inp-name').value.trim();
+// ── IMGBB UPLOAD ──
+const IMGBB_KEY = '0d097706b237d98b5ac6cf1b00cb40f7';
+let pendingFile = null;
+
+function handleFileSelect(file) {
+  if (!file || !file.type.startsWith('image/')) { showToast('Please select an image file.', true); return; }
+  pendingFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('upload-preview').src = e.target.result;
+    document.getElementById('inp-name').value = file.name.replace(/\.[^.]+$/, '');
+    document.getElementById('drop-zone').style.display = 'none';
+    document.getElementById('upload-meta').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function cancelUpload() {
+  pendingFile = null;
+  document.getElementById('drop-zone').style.display = 'flex';
+  document.getElementById('upload-meta').style.display = 'none';
+  document.getElementById('upload-progress').style.display = 'none';
+  document.getElementById('file-input').value = '';
+}
+
+async function uploadToImgBB() {
+  if (!pendingFile) return;
+  const name = document.getElementById('inp-name').value.trim() || 'Photo';
   const album = document.getElementById('inp-album').value;
-  if (!url) { alert('Please paste an image URL.'); return; }
+
+  // Show progress
+  document.getElementById('upload-meta').style.display = 'none';
+  document.getElementById('upload-progress').style.display = 'block';
+  document.getElementById('progress-bar').style.width = '30%';
+  document.getElementById('progress-label').textContent = 'Uploading to ImgBB…';
+
+  try {
+    const base64 = await fileToBase64(pendingFile);
+    document.getElementById('progress-bar').style.width = '60%';
+
+    const formData = new FormData();
+    formData.append('image', base64.split(',')[1]);
+    formData.append('name', name);
+
+    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
+      method: 'POST',
+      body: formData
+    });
+    const json = await res.json();
+
+    if (!json.success) throw new Error(json.error?.message || 'Upload failed');
+
+    document.getElementById('progress-bar').style.width = '90%';
+    document.getElementById('progress-label').textContent = 'Saving to gallery…';
+
+    const url = json.data.url;
+    const added = Date.now();
+    const photo = { url, name, album, added };
+    await apiPost({ action: 'add', ...photo });
+    data.photos.push(photo);
+
+    document.getElementById('progress-bar').style.width = '100%';
+    document.getElementById('progress-label').textContent = 'Done!';
+
+    setTimeout(() => {
+      cancelUpload();
+      document.getElementById('add-panel').classList.remove('open');
+      showToast('Photo uploaded & added! ✓');
+      renderGrid();
+    }, 600);
+
+  } catch(e) {
+    document.getElementById('upload-progress').style.display = 'none';
+    document.getElementById('upload-meta').style.display = 'block';
+    showToast('Upload failed: ' + e.message, true);
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Drag and drop events
+function initDropZone() {
+  const zone = document.getElementById('drop-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  });
+  zone.addEventListener('click', () => document.getElementById('file-input').click());
+}
+
+async function addPhotoByUrl() {
+  const url = document.getElementById('inp-url').value.trim();
+  const name = document.getElementById('inp-name').value.trim() || 'Photo';
+  const album = document.getElementById('inp-album').value;
+  if (!url) { showToast('Please paste an image URL.', true); return; }
   const added = Date.now();
-  const photo = { url, name: name || 'Photo', album, added };
+  const photo = { url, name, album, added };
   setLoading(true);
   await apiPost({ action: 'add', ...photo });
   data.photos.push(photo);
   document.getElementById('inp-url').value = '';
-  document.getElementById('inp-name').value = '';
   setLoading(false);
-  showToast('Photo added! Visible on all devices ✓');
+  showToast('Photo added! ✓');
   renderGrid();
 }
 
@@ -915,6 +1080,7 @@ document.addEventListener('visibilitychange', () => {
 let galleryLoaded = false;
 async function loadGallery() {
   galleryLoaded = true;
+  initDropZone();
   document.getElementById('grid').innerHTML = `<div class="empty"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10" stroke="var(--accent)"/></svg><br>Loading your gallery…</div>`;
   await apiGet();
   renderAll();
