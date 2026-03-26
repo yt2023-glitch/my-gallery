@@ -9,16 +9,16 @@
 :root{--bg:#0f0f0f;--surface:#1a1a1a;--surface2:#222;--border:#2e2e2e;--text:#e8e6e0;--muted:#888;--accent:#c8a96e;--accent2:#e8d5b0;--radius:10px;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
-header{padding:16px 40px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
-.header-left{display:flex;align-items:center;gap:16px;}
-.site-logo-img{width:64px;height:64px;object-fit:cover;border-radius:12px;border:1px solid var(--border);display:none;}
+header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
+.header-left{display:flex;align-items:center;gap:22px;}
+.site-logo-img{width:80px;height:80px;object-fit:cover;border-radius:16px;border:1px solid var(--border);display:none;}
 .site-logo-img.visible{display:block;}
-.logo-text{display:flex;flex-direction:column;gap:3px;}
-.logo{font-family:'Playfair Display',serif;font-size:28px;font-weight:600;color:var(--accent2);line-height:1.1;}
+.logo-text{display:flex;flex-direction:column;gap:5px;}
+.logo{font-family:'Playfair Display',serif;font-size:38px;font-weight:600;color:var(--accent2);line-height:1.1;}
 .logo span{color:var(--accent);}
-.tagline{font-size:13px;color:var(--muted);letter-spacing:0.05em;font-style:italic;}
+.tagline{font-size:15px;color:var(--muted);letter-spacing:0.06em;font-style:italic;}
 .header-right{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
-.storage-badge{font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--border);padding:4px 10px;border-radius:999px;}
+.storage-badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--border);padding:5px 12px;border-radius:999px;}
 .btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 13px;border-radius:var(--radius);font-size:13px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
 .btn:hover{border-color:var(--accent);color:var(--accent);}
 .btn.primary{background:var(--accent);color:#1a1200;border-color:var(--accent);font-weight:500;}
@@ -148,7 +148,7 @@ header{padding:16px 40px;border-bottom:1px solid var(--border);display:flex;alig
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 @keyframes spin{to{transform:rotate(360deg);}}
-.logo-upload-preview{width:70px;height:70px;object-fit:cover;border-radius:10px;border:2px solid var(--border);display:none;margin:0 auto;}
+.logo-upload-preview{width:120px;height:120px;object-fit:cover;border-radius:14px;border:2px solid var(--border);display:none;margin:0 auto;}
 .logo-upload-preview.visible{display:block;}
 .logo-drop{border:2px dashed var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer;font-size:12px;color:var(--muted);transition:all .2s;}
 .logo-drop:hover,.logo-drop.dragover{border-color:var(--accent);color:var(--accent);}
@@ -158,6 +158,9 @@ header{padding:16px 40px;border-bottom:1px solid var(--border);display:flex;alig
 @media(max-width:600px){
   header,.toolbar,.sort-filter-bar,.gallery-wrap,.add-panel{padding-left:14px;padding-right:14px;}
   .add-panel{margin:9px 14px;}
+  .site-logo-img.visible{width:54px;height:54px;}
+  .logo{font-size:26px;}
+  .tagline{font-size:12px;}
   .grid.size-sm{grid-template-columns:repeat(auto-fill,minmax(85px,1fr));}
   .grid.size-md{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
   #bulk-select-bar{padding:9px 14px;flex-wrap:wrap;}
@@ -1140,8 +1143,8 @@ function handleLogoUpload(file) {
   reader.onload = e => {
     const img = new Image();
     img.onload = () => {
-      // Resize to max 400x400 using canvas to keep file size small but sharp
-      const MAX = 400;
+      // Resize to max 600x600 using canvas for sharp 300x300 display
+      const MAX = 600;
       const scale = Math.min(MAX / img.width, MAX / img.height, 1);
       const w = Math.round(img.width * scale);
       const h = Math.round(img.height * scale);
