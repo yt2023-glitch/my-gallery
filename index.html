@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Forbidden Heaven</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Playfair+Display:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -896,22 +896,21 @@ function getTouchDist(touches){
   return Math.sqrt(dx*dx+dy*dy);
 }
 
+// Use non-passive so we can preventDefault and block browser zoom
 imgWrap.addEventListener('touchstart',e=>{
   if(document.fullscreenElement) showFsUI();
   touchMoved=false;
 
   if(e.touches.length===2){
-    // Two fingers — pinch zoom mode, cancel any swipe
+    e.preventDefault(); // block browser pinch zoom
     isPinching=true;
     isDragging=false;
     pinchStartDist=getTouchDist(e.touches);
     pinchStartScale=scale;
-    // Record midpoint for pan anchor
     startX=(e.touches[0].clientX+e.touches[1].clientX)/2;
     startY=(e.touches[0].clientY+e.touches[1].clientY)/2;
     startPanX=panX; startPanY=panY;
   } else if(e.touches.length===1 && !isPinching){
-    // Single finger — potential swipe or pan
     isPinching=false;
     swipeStartX=e.touches[0].clientX;
     swipeStartY=e.touches[0].clientY;
@@ -920,46 +919,41 @@ imgWrap.addEventListener('touchstart',e=>{
     startY=e.touches[0].clientY;
     startPanX=panX; startPanY=panY;
   }
-},{passive:true});
+},{passive:false});
 
 imgWrap.addEventListener('touchmove',e=>{
+  e.preventDefault(); // always prevent page scroll/zoom inside lightbox
+
   touchMoved=true;
 
   if(e.touches.length===2 && isPinching){
-    // Pinch zoom
     const dist=getTouchDist(e.touches);
-    const newScale=Math.max(0.5, Math.min(8, pinchStartScale*(dist/pinchStartDist)));
+    const newScale=Math.max(0.5,Math.min(8,pinchStartScale*(dist/pinchStartDist)));
     scale=newScale;
-    // Pan with midpoint movement
     const midX=(e.touches[0].clientX+e.touches[1].clientX)/2;
     const midY=(e.touches[0].clientY+e.touches[1].clientY)/2;
     panX=startPanX+(midX-startX);
     panY=startPanY+(midY-startY);
     applyTransform(false);
   } else if(e.touches.length===1 && isDragging && !isPinching && scale>1){
-    // Single finger pan (only when zoomed in)
     panX=startPanX+e.touches[0].clientX-startX;
     panY=startPanY+e.touches[0].clientY-startY;
     applyTransform(false);
   }
-},{passive:true});
+},{passive:false});
 
 imgWrap.addEventListener('touchend',e=>{
   if(e.touches.length===0){
-    // All fingers lifted
     if(isPinching){
-      // Finished pinch — if scale went below 1, snap back to 1
-      if(scale<1){ scale=1; panX=0; panY=0; applyTransform(); }
+      if(scale<1){scale=1;panX=0;panY=0;applyTransform();}
       isPinching=false;
       isDragging=false;
-      return; // Never trigger swipe after a pinch
+      return;
     }
 
-    // Single finger swipe detection (only if not zoomed in and finger actually moved)
-    if(!touchMoved) {
-      // Tap — double tap zoom
+    if(!touchMoved){
       const now=Date.now();
-      if(now-lastTap<300){ scale<=1?zoomBy(1.5):resetTransform(); }
+      if(now-lastTap<300){scale<=1?zoomBy(1.5):resetTransform();}
       lastTap=now;
       isDragging=false;
       return;
@@ -968,20 +962,17 @@ imgWrap.addEventListener('touchend',e=>{
     if(scale<=1){
       const dx=e.changedTouches[0].clientX-swipeStartX;
       const dy=e.changedTouches[0].clientY-swipeStartY;
-      // Only swipe if horizontal movement is dominant and exceeds threshold
-      if(Math.abs(dx)>60 && Math.abs(dx)>Math.abs(dy)*1.5){
+      if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){
         dx<0?navigate(1):navigate(-1);
       }
     }
     isDragging=false;
 
   } else if(e.touches.length===1 && isPinching){
-    // One finger lifted during pinch — reset to single finger state cleanly
     isPinching=false;
     isDragging=false;
-    // Don't start a new drag/swipe from here to avoid accidental navigation
   }
-},{passive:true});
+},{passive:false});
 
 // SCROLL ZOOM
 imgWrap.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY<0?0.15:-0.15);},{passive:false});
