@@ -362,6 +362,11 @@ async function apiGet() {
     const fromPhotos = [...new Set(data.photos.map(p=>p.album).filter(Boolean))];
     const saved = JSON.parse(localStorage.getItem('gallery_albums')||'["Favourites","Nature","Travel"]');
     data.albums = [...new Set([...saved,...fromPhotos])];
+    // Load covers from sheet (overrides localStorage)
+    if (json.covers) {
+      albumCovers = json.covers;
+      saveCovers();
+    }
   } catch(e) { showToast('Could not load photos.',true); }
 }
 async function apiPost(payload) {
@@ -453,8 +458,11 @@ function quickStar(id){
 }
 
 // COVER
-function setCoverPhoto(url,album){
-  albumCovers[album]=url; saveCovers(); renderAlbumList();
+async function setCoverPhoto(url, album) {
+  albumCovers[album] = url;
+  saveCovers();
+  renderAlbumList();
+  await apiPost({ action: 'cover', album, url });
   showToast(`Cover set for "${album}" ✓`);
 }
 
