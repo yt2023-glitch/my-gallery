@@ -842,7 +842,7 @@ function rotate(deg){
   const p=lbPhotos[lbIndex]; if(p) rotationMap[p.added]=rot;
   applyTransform();
 }
-function zoomBy(delta){ scale=Math.max(1,Math.min(8,scale+delta)); applyTransform(); }
+function zoomBy(delta){ scale=Math.max(1,Math.min(8,scale+delta)); if(scale===1){panX=0;panY=0;} applyTransform(); }
 function resetTransform(animate){ rot=0;scale=1;panX=0;panY=0; applyTransform(animate); }
 
 // FULLSCREEN
@@ -979,7 +979,7 @@ imgWrap.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY<0?0.15:-
 
 // MOUSE DRAG
 const lbImg=document.getElementById('lb-img');
-lbImg.addEventListener('mousedown',e=>{isDragging=true;startX=e.clientX;startY=e.clientY;startPanX=panX;startPanY=panY;lbImg.classList.add('dragging');});
+lbImg.addEventListener('mousedown',e=>{if(scale<=1)return;isDragging=true;startX=e.clientX;startY=e.clientY;startPanX=panX;startPanY=panY;lbImg.classList.add('dragging');});
 window.addEventListener('mousemove',e=>{if(!isDragging)return;panX=startPanX+e.clientX-startX;panY=startPanY+e.clientY-startY;applyTransform(false);});
 window.addEventListener('mouseup',()=>{isDragging=false;lbImg.classList.remove('dragging');});
 lbImg.addEventListener('dblclick',()=>{scale<=1?zoomBy(1):resetTransform();});
