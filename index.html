@@ -881,29 +881,103 @@ function showFsUI(){
 }
 document.getElementById('lb').addEventListener('mousemove',()=>{if(document.fullscreenElement)showFsUI();});
 
-// SWIPE (mobile)
+// ── TOUCH HANDLING (swipe + pinch-zoom, no clashing) ──
 let swipeStartX=0, swipeStartY=0, lastTap=0;
+let isPinching=false, pinchStartDist=0, pinchStartScale=1;
+let touchMoved=false;
 const imgWrap=document.getElementById('lb-img-wrap');
+
+function getTouchDist(touches){
+  const dx=touches[0].clientX-touches[1].clientX;
+  const dy=touches[0].clientY-touches[1].clientY;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+
 imgWrap.addEventListener('touchstart',e=>{
-  swipeStartX=e.touches[0].clientX; swipeStartY=e.touches[0].clientY;
-  if(e.touches.length===1){isDragging=true;startX=e.touches[0].clientX;startY=e.touches[0].clientY;startPanX=panX;startPanY=panY;}
   if(document.fullscreenElement) showFsUI();
+  touchMoved=false;
+
+  if(e.touches.length===2){
+    // Two fingers — pinch zoom mode, cancel any swipe
+    isPinching=true;
+    isDragging=false;
+    pinchStartDist=getTouchDist(e.touches);
+    pinchStartScale=scale;
+    // Record midpoint for pan anchor
+    startX=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    startY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    startPanX=panX; startPanY=panY;
+  } else if(e.touches.length===1 && !isPinching){
+    // Single finger — potential swipe or pan
+    isPinching=false;
+    swipeStartX=e.touches[0].clientX;
+    swipeStartY=e.touches[0].clientY;
+    isDragging=true;
+    startX=e.touches[0].clientX;
+    startY=e.touches[0].clientY;
+    startPanX=panX; startPanY=panY;
+  }
 },{passive:true});
-imgWrap.addEventListener('touchend',e=>{
-  const dx=e.changedTouches[0].clientX-swipeStartX;
-  const dy=e.changedTouches[0].clientY-swipeStartY;
-  if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)&&scale<=1){dx<0?navigate(1):navigate(-1);}
-  isDragging=false;
-  // double tap zoom
-  const now=Date.now();
-  if(now-lastTap<300){scale<=1?zoomBy(1):resetTransform();}
-  lastTap=now;
-},{passive:true});
+
 imgWrap.addEventListener('touchmove',e=>{
-  if(!isDragging||e.touches.length!==1||scale<=1) return;
-  panX=startPanX+e.touches[0].clientX-startX;
-  panY=startPanY+e.touches[0].clientY-startY;
-  applyTransform(false);
+  touchMoved=true;
+
+  if(e.touches.length===2 && isPinching){
+    // Pinch zoom
+    const dist=getTouchDist(e.touches);
+    const newScale=Math.max(0.5, Math.min(8, pinchStartScale*(dist/pinchStartDist)));
+    scale=newScale;
+    // Pan with midpoint movement
+    const midX=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    const midY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    panX=startPanX+(midX-startX);
+    panY=startPanY+(midY-startY);
+    applyTransform(false);
+  } else if(e.touches.length===1 && isDragging && !isPinching && scale>1){
+    // Single finger pan (only when zoomed in)
+    panX=startPanX+e.touches[0].clientX-startX;
+    panY=startPanY+e.touches[0].clientY-startY;
+    applyTransform(false);
+  }
+},{passive:true});
+
+imgWrap.addEventListener('touchend',e=>{
+  if(e.touches.length===0){
+    // All fingers lifted
+    if(isPinching){
+      // Finished pinch — if scale went below 1, snap back to 1
+      if(scale<1){ scale=1; panX=0; panY=0; applyTransform(); }
+      isPinching=false;
+      isDragging=false;
+      return; // Never trigger swipe after a pinch
+    }
+
+    // Single finger swipe detection (only if not zoomed in and finger actually moved)
+    if(!touchMoved) {
+      // Tap — double tap zoom
+      const now=Date.now();
+      if(now-lastTap<300){ scale<=1?zoomBy(1.5):resetTransform(); }
+      lastTap=now;
+      isDragging=false;
+      return;
+    }
+
+    if(scale<=1){
+      const dx=e.changedTouches[0].clientX-swipeStartX;
+      const dy=e.changedTouches[0].clientY-swipeStartY;
+      // Only swipe if horizontal movement is dominant and exceeds threshold
+      if(Math.abs(dx)>60 && Math.abs(dx)>Math.abs(dy)*1.5){
+        dx<0?navigate(1):navigate(-1);
+      }
+    }
+    isDragging=false;
+
+  } else if(e.touches.length===1 && isPinching){
+    // One finger lifted during pinch — reset to single finger state cleanly
+    isPinching=false;
+    isDragging=false;
+    // Don't start a new drag/swipe from here to avoid accidental navigation
+  }
 },{passive:true});
 
 // SCROLL ZOOM
