@@ -842,7 +842,7 @@ function rotate(deg){
   const p=lbPhotos[lbIndex]; if(p) rotationMap[p.added]=rot;
   applyTransform();
 }
-function zoomBy(delta){ scale=Math.max(0.2,Math.min(8,scale+delta)); applyTransform(); }
+function zoomBy(delta){ scale=Math.max(1,Math.min(8,scale+delta)); applyTransform(); }
 function resetTransform(animate){ rot=0;scale=1;panX=0;panY=0; applyTransform(animate); }
 
 // FULLSCREEN
@@ -928,7 +928,7 @@ imgWrap.addEventListener('touchmove',e=>{
 
   if(e.touches.length===2 && isPinching){
     const dist=getTouchDist(e.touches);
-    const newScale=Math.max(0.5,Math.min(8,pinchStartScale*(dist/pinchStartDist)));
+    const newScale=Math.max(1,Math.min(8,pinchStartScale*(dist/pinchStartDist)));
     scale=newScale;
     const midX=(e.touches[0].clientX+e.touches[1].clientX)/2;
     const midY=(e.touches[0].clientY+e.touches[1].clientY)/2;
