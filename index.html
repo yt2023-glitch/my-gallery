@@ -456,10 +456,21 @@ async function apiGet() {
     const fromPhotos = [...new Set(data.photos.map(p=>p.album).filter(Boolean))];
     const saved = JSON.parse(localStorage.getItem('gallery_albums')||'["Favourites","Nature","Travel"]');
     data.albums = [...new Set([...saved,...fromPhotos])];
-    // Load covers from sheet (overrides localStorage)
+    // Load covers from sheet
     if (json.covers) {
       albumCovers = json.covers;
       saveCovers();
+    }
+    // Load settings from sheet (overrides localStorage)
+    if (json.settings && Object.keys(json.settings).length > 0) {
+      siteSettings = {
+        title:      json.settings.title      || siteSettings.title,
+        tagline:    json.settings.tagline    || siteSettings.tagline,
+        pwTitle:    json.settings.pwTitle    || siteSettings.pwTitle,
+        logoDataUrl:json.settings.logoDataUrl|| siteSettings.logoDataUrl
+      };
+      saveSettings_toStorage();
+      applyBranding();
     }
   } catch(e) { showToast('Could not load photos.',true); }
 }
@@ -1082,7 +1093,7 @@ function removeLogo() {
   document.getElementById('remove-logo-btn').style.display = 'none';
   document.getElementById('logo-file').value = '';
 }
-function saveSettings() {
+async function saveSettings() {
   const title = document.getElementById('set-title').value.trim() || 'Forbidden Heaven';
   const tagline = document.getElementById('set-tagline').value.trim();
   const pwTitle = document.getElementById('set-pw-title').value.trim() || title;
@@ -1092,6 +1103,8 @@ function saveSettings() {
   saveSettings_toStorage();
   applyBranding();
   closeSettingsModal();
+  showToast('Saving settings…');
+  await apiPost({ action: 'settings', settings: siteSettings });
   showToast('Settings saved ✓');
 }
 
