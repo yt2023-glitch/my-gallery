@@ -115,7 +115,7 @@ header{padding:16px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .slideshow-controls{display:flex;align-items:center;gap:7px;}
 .ss-speed{background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);padding:3px 7px;border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif;}
 .ss-speed option{background:#111;}
-#album-modal,#rename-modal,#move-modal,#recycle-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9998;align-items:center;justify-content:center;}
+#album-modal,#rename-modal,#move-modal,#recycle-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99990;align-items:center;justify-content:center;}
 #album-modal.open,#rename-modal.open,#move-modal.open,#recycle-modal.open{display:flex;}
 .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:22px;width:420px;max-width:95vw;max-height:80vh;overflow-y:auto;display:flex;flex-direction:column;gap:13px;}
 .modal-box h3{font-family:'Playfair Display',serif;font-size:16px;color:var(--accent2);}
@@ -463,9 +463,12 @@ function openRenameModal(){
   const p=lbPhotos[lbIndex]; if(!p) return;
   document.getElementById('rename-input').value=p.name;
   document.getElementById('rename-modal').classList.add('open');
-  setTimeout(()=>document.getElementById('rename-input').focus(),100);
+  setTimeout(()=>document.getElementById('rename-input').select(),150);
 }
-function closeRenameModal(){document.getElementById('rename-modal').classList.remove('open');}
+function closeRenameModal(){
+  document.getElementById('rename-modal').classList.remove('open');
+  document.getElementById('rename-input').value='';
+}
 async function confirmRename(){
   const p=lbPhotos[lbIndex];
   const newName=document.getElementById('rename-input').value.trim();
@@ -483,14 +486,27 @@ async function confirmRename(){
 function openMoveModal(){
   const p=lbPhotos[lbIndex]; if(!p) return;
   const list=document.getElementById('move-album-list'); list.innerHTML='';
+  // Show current album label
+  const curr=document.createElement('p');
+  curr.style.cssText='font-size:12px;color:var(--muted);margin-bottom:4px;';
+  curr.textContent=`Current album: ${p.album}`;
+  list.appendChild(curr);
+  let hasOptions=false;
   data.albums.forEach(a=>{
     if(a===p.album) return;
+    hasOptions=true;
     const btn=document.createElement('button');
     btn.className='btn'; btn.style.justifyContent='flex-start';
     btn.textContent=`📁 ${a}`;
     btn.onclick=()=>movePhoto(p,a);
     list.appendChild(btn);
   });
+  if(!hasOptions){
+    const msg=document.createElement('p');
+    msg.style.cssText='font-size:12px;color:var(--muted);text-align:center;padding:10px;';
+    msg.textContent='No other albums. Create one first via Albums menu.';
+    list.appendChild(msg);
+  }
   document.getElementById('move-modal').classList.add('open');
 }
 function closeMoveModal(){document.getElementById('move-modal').classList.remove('open');}
@@ -790,9 +806,18 @@ lbImg.addEventListener('dblclick',()=>{scale<=1?zoomBy(1):resetTransform();});
 // KEYBOARD
 document.addEventListener('keydown',e=>{
   if(!document.getElementById('lb').classList.contains('open')) return;
+  // If a modal is open, Escape closes the modal only
+  if(e.key==='Escape'){
+    if(document.getElementById('rename-modal').classList.contains('open')){closeRenameModal();return;}
+    if(document.getElementById('move-modal').classList.contains('open')){closeMoveModal();return;}
+    if(document.fullscreenElement) document.exitFullscreen();
+    else closeLb();
+    return;
+  }
+  // Don't fire shortcuts if rename input is focused
+  if(document.activeElement===document.getElementById('rename-input')) return;
   if(e.key==='ArrowLeft') navigate(-1);
   if(e.key==='ArrowRight') navigate(1);
-  if(e.key==='Escape'){if(document.fullscreenElement)document.exitFullscreen();else closeLb();}
   if(e.key==='+'||e.key==='=') zoomBy(0.25);
   if(e.key==='-') zoomBy(-0.25);
   if(e.key==='r'||e.key==='R') rotate(90);
