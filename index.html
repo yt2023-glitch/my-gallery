@@ -147,7 +147,11 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .album-check-item:hover{background:var(--surface2);}
 .album-check-item input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;}
 #album-home{padding:18px 40px;}
-.album-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;}
+#album-home-toolbar{padding:9px 40px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.album-home-grid{display:grid;gap:14px;}
+.album-home-grid.ags-sm{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));}
+.album-home-grid.ags-md{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));}
+.album-home-grid.ags-lg{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}
 .album-card{position:relative;border-radius:10px;overflow:hidden;cursor:pointer;background:var(--surface2);border:1px solid var(--border);aspect-ratio:1;transition:transform .2s,border-color .2s;}
 .album-card:hover{transform:translateY(-3px);border-color:var(--accent);}
 .album-card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s ease;}
@@ -160,7 +164,14 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .back-btn:hover{border-color:var(--accent);color:var(--accent);}
 #photo-view-header{padding:10px 40px 0;display:none;align-items:center;gap:12px;}
 #photo-view-header.visible{display:flex;}
-@media(max-width:600px){#album-home{padding:14px;}#photo-view-header{padding:10px 14px 0;}.album-home-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px;}}
+@media(max-width:600px){
+  #album-home{padding:14px;}
+  #album-home-toolbar{padding:9px 14px;}
+  #photo-view-header{padding:10px 14px 0;}
+  .album-home-grid.ags-sm{grid-template-columns:repeat(auto-fill,minmax(90px,1fr));}
+  .album-home-grid.ags-md{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));}
+  .album-home-grid.ags-lg{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));}
+}
 @keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-7px);}75%{transform:translateX(7px);}}
 ::-webkit-scrollbar{width:5px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
@@ -259,9 +270,30 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   </details>
 </div>
 
+<!-- ALBUM HOME TOOLBAR -->
+<div id="album-home-toolbar" style="display:none;">
+  <div class="search-wrap" style="flex:1;min-width:150px;">
+    <span class="search-icon">⌕</span>
+    <input class="field search-field" id="album-search" placeholder="Filter albums…" oninput="renderAlbumHome()">
+    <button class="search-clear" id="album-search-clear" onclick="clearAlbumSearch()" title="Clear">✕</button>
+  </div>
+  <select class="field sort-select" id="album-sort" onchange="renderAlbumHome()">
+    <option value="default">Default order</option>
+    <option value="az">A → Z</option>
+    <option value="za">Z → A</option>
+    <option value="most">Most photos</option>
+    <option value="least">Least photos</option>
+  </select>
+  <div class="grid-toggle">
+    <button title="Small" onclick="setAlbumGridSize('sm')" id="ags-sm">⊟</button>
+    <button title="Medium" onclick="setAlbumGridSize('md')" id="ags-md" class="active">⊞</button>
+    <button title="Large" onclick="setAlbumGridSize('lg')" id="ags-lg">⬛</button>
+  </div>
+</div>
+
 <!-- ALBUM HOME VIEW -->
 <div id="album-home">
-  <div class="album-home-grid" id="album-home-grid"></div>
+  <div class="album-home-grid ags-md" id="album-home-grid"></div>
 </div>
 
 <!-- PHOTO VIEW HEADER (back button + album name) -->
@@ -538,6 +570,7 @@ function updateStorageBadge(){
 // NAV: HOME / ALBUM VIEW
 function goHome(){
   currentAlbum='all';
+  document.getElementById('album-home-toolbar').style.display='flex';
   document.getElementById('album-home').style.display='';
   document.getElementById('photo-view-header').classList.remove('visible');
   document.getElementById('sort-filter-bar').style.display='none';
@@ -549,6 +582,7 @@ function goHome(){
 }
 function openAlbumView(albumKey){
   currentAlbum=albumKey;
+  document.getElementById('album-home-toolbar').style.display='none';
   document.getElementById('album-home').style.display='none';
   document.getElementById('photo-view-header').classList.add('visible');
   document.getElementById('photo-view-title').textContent=albumKey==='all'?'All Photos':albumKey==='starred'?'⭐ Starred':albumKey;
@@ -557,11 +591,32 @@ function openAlbumView(albumKey){
   document.getElementById('search-input').value='';
   renderGrid();
 }
+let albumGridSize='md';
+
+function setAlbumGridSize(sz){
+  albumGridSize=sz;
+  const g=document.getElementById('album-home-grid');
+  g.className='album-home-grid ags-'+sz;
+  ['sm','md','lg'].forEach(s=>document.getElementById('ags-'+s).classList.toggle('active',s===sz));
+}
+
+function clearAlbumSearch(){
+  document.getElementById('album-search').value='';
+  document.getElementById('album-search-clear').style.display='none';
+  renderAlbumHome();
+}
+
 function renderAlbumHome(){
   const grid=document.getElementById('album-home-grid');
   grid.innerHTML='';
+  const query=(document.getElementById('album-search')?.value||'').trim().toLowerCase();
+  const sort=document.getElementById('album-sort')?.value||'default';
+  const clearBtn=document.getElementById('album-search-clear');
+  if(clearBtn) clearBtn.style.display=query?'block':'none';
+
   const counts={};
   data.photos.forEach(p=>{(p.albums||[]).forEach(a=>{counts[a]=(counts[a]||0)+1;});});
+
   const makeCard=(key,label,count,coverUrl)=>{
     const card=document.createElement('div'); card.className='album-card';
     if(coverUrl){
@@ -572,14 +627,35 @@ function renderAlbumHome(){
     card.addEventListener('click',()=>openAlbumView(key));
     return card;
   };
+
+  // Always show All Photos and Starred first (not affected by filter/sort)
   const allCover=data.photos.length?data.photos.slice().sort((a,b)=>b.added-a.added)[0].url:null;
-  grid.appendChild(makeCard('all','All Photos',data.photos.length,allCover));
+  if(!query||'all photos'.includes(query))
+    grid.appendChild(makeCard('all','All Photos',data.photos.length,allCover));
   const starredPhotos=data.photos.filter(p=>starredIds.has(String(p.added)));
-  if(starredPhotos.length){
+  if(starredPhotos.length&&(!query||'starred'.includes(query))){
     const sCover=starredPhotos.slice().sort((a,b)=>b.added-a.added)[0].url;
     grid.appendChild(makeCard('starred','⭐ Starred',starredPhotos.length,sCover));
   }
-  data.albums.forEach(a=>{
+
+  // Filter user albums by search
+  let albums=data.albums.filter(a=>!query||a.toLowerCase().includes(query));
+
+  // Sort user albums
+  if(sort==='az') albums=albums.slice().sort((a,b)=>a.localeCompare(b));
+  else if(sort==='za') albums=albums.slice().sort((a,b)=>b.localeCompare(a));
+  else if(sort==='most') albums=albums.slice().sort((a,b)=>(counts[b]||0)-(counts[a]||0));
+  else if(sort==='least') albums=albums.slice().sort((a,b)=>(counts[a]||0)-(counts[b]||0));
+
+  if(!albums.length && query){
+    const empty=document.createElement('div');
+    empty.style.cssText='grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;';
+    empty.textContent=`No albums match "${query}"`;
+    grid.appendChild(empty);
+    return;
+  }
+
+  albums.forEach(a=>{
     const cover=albumCovers[a]||null;
     grid.appendChild(makeCard(a,a,counts[a]||0,cover));
   });
