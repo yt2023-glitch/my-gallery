@@ -396,22 +396,9 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <button class="lb-arrow" id="lb-next" onclick="navigate(1)">›</button>
   <div class="lb-bottom">
     <div class="lb-zoom-hint">Scroll zoom · Drag pan · ←→ nav · F full · S slide · Swipe on mobile</div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div class="lb-rotate-strip">
-        <button class="lb-rotate-strip-btn" onclick="rotate(-90)" title="Rotate left">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
-          Rotate Left
-        </button>
-        <span id="lb-rotation-badge" style="display:none;font-size:10px;color:var(--accent);background:rgba(200,169,110,.15);border:1px solid rgba(200,169,110,.3);border-radius:999px;padding:2px 8px;">0°</span>
-        <button class="lb-rotate-strip-btn" onclick="rotate(90)" title="Rotate right">
-          Rotate Right
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.49-4.5"/></svg>
-        </button>
-      </div>
-      <div class="slideshow-controls">
-        <span style="font-size:11px;color:rgba(255,255,255,.35);">Speed:</span>
-        <select class="ss-speed" id="ss-speed"><option value="3000">3s</option><option value="5000" selected>5s</option><option value="10000">10s</option></select>
-      </div>
+    <div class="slideshow-controls">
+      <span style="font-size:11px;color:rgba(255,255,255,.35);">Speed:</span>
+      <select class="ss-speed" id="ss-speed"><option value="3000">3s</option><option value="5000" selected>5s</option><option value="10000">10s</option></select>
     </div>
   </div>
 </div>
