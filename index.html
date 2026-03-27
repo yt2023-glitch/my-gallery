@@ -146,6 +146,21 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .album-check-item{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:3px 2px;border-radius:5px;transition:background .15s;}
 .album-check-item:hover{background:var(--surface2);}
 .album-check-item input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;}
+#album-home{padding:18px 40px;}
+.album-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;}
+.album-card{position:relative;border-radius:10px;overflow:hidden;cursor:pointer;background:var(--surface2);border:1px solid var(--border);aspect-ratio:1;transition:transform .2s,border-color .2s;}
+.album-card:hover{transform:translateY(-3px);border-color:var(--accent);}
+.album-card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s ease;}
+.album-card:hover img{transform:scale(1.05);}
+.album-card-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--border);}
+.album-card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.82) 0%,transparent 55%);display:flex;flex-direction:column;justify-content:flex-end;padding:10px 11px;}
+.album-card-name{font-size:13px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.album-card-count{font-size:11px;color:rgba(255,255,255,.55);margin-top:2px;}
+.back-btn{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 13px;border-radius:var(--radius);font-size:13px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;}
+.back-btn:hover{border-color:var(--accent);color:var(--accent);}
+#photo-view-header{padding:10px 40px 0;display:none;align-items:center;gap:12px;}
+#photo-view-header.visible{display:flex;}
+@media(max-width:600px){#album-home{padding:14px;}#photo-view-header{padding:10px 14px 0;}.album-home-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px;}}
 @keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-7px);}75%{transform:translateX(7px);}}
 ::-webkit-scrollbar{width:5px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
@@ -244,11 +259,22 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   </details>
 </div>
 
-<div class="toolbar">
+<!-- ALBUM HOME VIEW -->
+<div id="album-home">
+  <div class="album-home-grid" id="album-home-grid"></div>
+</div>
+
+<!-- PHOTO VIEW HEADER (back button + album name) -->
+<div id="photo-view-header">
+  <button class="back-btn" onclick="goHome()">← Albums</button>
+  <span style="font-family:'Playfair Display',serif;font-size:16px;color:var(--accent2);" id="photo-view-title"></span>
+</div>
+
+<div class="toolbar" id="toolbar" style="display:none;">
   <div class="album-tabs" id="tabs"></div>
 </div>
 
-<div class="sort-filter-bar">
+<div class="sort-filter-bar" id="sort-filter-bar" style="display:none;">
   <div class="search-wrap">
     <span class="search-icon">⌕</span>
     <input class="field search-field" id="search-input" placeholder="Filter by name…" oninput="renderGrid()">
@@ -267,7 +293,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   </div>
 </div>
 
-<div class="gallery-wrap">
+<div class="gallery-wrap" id="gallery-wrap" style="display:none;">
   <div class="album-label" id="album-label">All Photos <small id="photo-count"></small></div>
   <div class="grid size-md" id="grid"></div>
 </div>
@@ -509,24 +535,58 @@ function updateStorageBadge(){
   document.getElementById('storage-badge').textContent=`📷 ${n} photo${n!==1?'s':''}`;
 }
 
-// ALBUMS
-function renderTabs(){
-  const tabs=document.getElementById('tabs');
-  tabs.innerHTML='';
+// NAV: HOME / ALBUM VIEW
+function goHome(){
+  currentAlbum='all';
+  document.getElementById('album-home').style.display='';
+  document.getElementById('photo-view-header').classList.remove('visible');
+  document.getElementById('sort-filter-bar').style.display='none';
+  document.getElementById('gallery-wrap').style.display='none';
+  document.getElementById('bulk-select-bar').classList.remove('open');
+  selectMode=false; selectedIds.clear();
+  document.getElementById('select-mode-btn').classList.remove('active');
+  renderAlbumHome();
+}
+function openAlbumView(albumKey){
+  currentAlbum=albumKey;
+  document.getElementById('album-home').style.display='none';
+  document.getElementById('photo-view-header').classList.add('visible');
+  document.getElementById('photo-view-title').textContent=albumKey==='all'?'All Photos':albumKey==='starred'?'⭐ Starred':albumKey;
+  document.getElementById('sort-filter-bar').style.display='flex';
+  document.getElementById('gallery-wrap').style.display='';
+  document.getElementById('search-input').value='';
+  renderGrid();
+}
+function renderAlbumHome(){
+  const grid=document.getElementById('album-home-grid');
+  grid.innerHTML='';
   const counts={};
   data.photos.forEach(p=>{(p.albums||[]).forEach(a=>{counts[a]=(counts[a]||0)+1;});});
-  const starCount=data.photos.filter(p=>starredIds.has(String(p.added))).length;
-  const makeTab=(label,val,count)=>{
-    const t=document.createElement('button');
-    t.className='tab'+(currentAlbum===val?' active':'');
-    t.innerHTML=`${label} <span class="tab-count">(${count})</span>`;
-    t.onclick=()=>{currentAlbum=val;renderAll();};
-    tabs.appendChild(t);
+  const makeCard=(key,label,count,coverUrl)=>{
+    const card=document.createElement('div'); card.className='album-card';
+    if(coverUrl){
+      card.innerHTML=`<img src="${coverUrl}" alt="${label}" loading="lazy"><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>`;
+    } else {
+      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>`;
+    }
+    card.addEventListener('click',()=>openAlbumView(key));
+    return card;
   };
-  makeTab('All Photos','all',data.photos.length);
-  if(starCount>0) makeTab('⭐ Starred','starred',starCount);
-  data.albums.forEach(a=>makeTab(a,a,counts[a]||0));
-  // Populate upload album checkbox list
+  const allCover=data.photos.length?data.photos.slice().sort((a,b)=>b.added-a.added)[0].url:null;
+  grid.appendChild(makeCard('all','All Photos',data.photos.length,allCover));
+  const starredPhotos=data.photos.filter(p=>starredIds.has(String(p.added)));
+  if(starredPhotos.length){
+    const sCover=starredPhotos.slice().sort((a,b)=>b.added-a.added)[0].url;
+    grid.appendChild(makeCard('starred','⭐ Starred',starredPhotos.length,sCover));
+  }
+  data.albums.forEach(a=>{
+    const cover=albumCovers[a]||null;
+    grid.appendChild(makeCard(a,a,counts[a]||0,cover));
+  });
+}
+
+// ALBUMS
+function renderTabs(){
   const alist=document.getElementById('inp-album-list');
   if(alist){
     alist.innerHTML='';
@@ -539,7 +599,7 @@ function renderTabs(){
   }
 }
 function openAlbumModal(){renderAlbumList();document.getElementById('album-modal').classList.add('open');}
-function closeAlbumModal(){document.getElementById('album-modal').classList.remove('open');renderAll();}
+function closeAlbumModal(){document.getElementById('album-modal').classList.remove('open');renderTabs();renderAlbumHome();}
 function renderAlbumList(){
   const list=document.getElementById('album-list');
   list.innerHTML=data.albums.length?'':'<p style="color:var(--muted);font-size:12px">No albums yet.</p>';
@@ -555,7 +615,7 @@ function createAlbum(){
   if(!name||data.albums.includes(name)) return;
   data.albums.push(name);
   document.getElementById('new-album-name').value='';
-  saveAlbums(); renderTabs(); renderAlbumList();
+  saveAlbums(); renderTabs(); renderAlbumList(); renderAlbumHome();
 }
 function deleteAlbum(i){
   const name=data.albums[i];
@@ -563,7 +623,7 @@ function deleteAlbum(i){
   data.albums.splice(i,1);
   data.photos.forEach(p=>{if(p.albums) p.albums=p.albums.filter(a=>a!==name);});
   if(currentAlbum===name) currentAlbum='all';
-  saveAlbums(); renderTabs(); renderAlbumList();
+  saveAlbums(); renderTabs(); renderAlbumList(); renderAlbumHome();
 }
 
 // STAR
@@ -588,6 +648,7 @@ async function setCoverPhoto(url, album) {
   albumCovers[album] = url;
   saveCovers();
   renderAlbumList();
+  renderAlbumHome();
   await apiPost({ action: 'cover', album, url });
   showToast(`Cover set for "${album}" ✓`);
 }
@@ -794,7 +855,7 @@ function toggleSelect(id){
   selectedIds.has(id)?selectedIds.delete(id):selectedIds.add(id);
   updateSelectedCount(); renderGrid();
 }
-function renderAll(){renderTabs();renderGrid();}
+function renderAll(){ renderTabs(); renderAlbumHome(); }
 
 // LIGHTBOX
 function openLb(index,photos){
@@ -1233,8 +1294,8 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)lockGallery
 let galleryLoaded=false;
 async function loadGallery(){
   galleryLoaded=true; initDropZone();
-  document.getElementById('grid').innerHTML=`<div class="empty"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10" stroke="var(--accent)"/></svg><br>Loading your gallery…</div>`;
-  await apiGet(); renderAll();
+  document.getElementById('album-home-grid').innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:50px 20px;color:var(--muted);font-size:14px;"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="display:block;margin:0 auto 10px;animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10" stroke="var(--accent)"/></svg>Loading your gallery…</div>`;
+  await apiGet(); renderTabs(); goHome();
 }
 
 document.getElementById('pw-input').focus();
