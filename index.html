@@ -639,8 +639,8 @@ function openAlbumView(albumKey){
   document.getElementById('sort-filter-bar').style.display='flex';
   document.getElementById('gallery-wrap').style.display='';
   document.getElementById('search-input').value='';
-  // Show rotate buttons only for real (named) albums
-  const showRot = (albumKey !== 'all' && albumKey !== 'starred');
+  // Show rotate buttons for all album views including 'all'
+  const showRot = (albumKey !== 'starred');
   document.getElementById('album-rot-left-btn').style.display = showRot ? '' : 'none';
   document.getElementById('album-rot-right-btn').style.display = showRot ? '' : 'none';
   renderGrid();
@@ -1162,7 +1162,7 @@ function showLbPhoto(){
   const p=lbPhotos[lbIndex];
   const img=document.getElementById('lb-img');
   img.classList.add('fade');
-  const albumOffset = (currentAlbum && currentAlbum!=='all' && currentAlbum!=='starred')
+  const albumOffset = (currentAlbum && currentAlbum!=='starred')
     ? (albumRotations[currentAlbum]||0) : 0;
   rot=(rotationMap[p.added]||0) + albumOffset; scale=1; panX=0; panY=0;
   applyTransform(false);
@@ -1211,18 +1211,21 @@ function rotate(deg){
 
 // Rotate all images in the current album (applies in lightbox only, thumbnails unaffected)
 function rotateAlbum(deg){
-  if(!currentAlbum || currentAlbum==='all' || currentAlbum==='starred') return;
+  if(!currentAlbum || currentAlbum==='starred') return;
   albumRotations[currentAlbum] = ((albumRotations[currentAlbum]||0) + deg + 360) % 360;
   localStorage.setItem('gallery_album_rotations', JSON.stringify(albumRotations));
-  // If lightbox is open and showing a photo from this album, update it live
+  // If lightbox is open, update live
   if(document.getElementById('lb').classList.contains('open')){
     const p=lbPhotos[lbIndex];
-    if(p && (p.albums||[]).includes(currentAlbum)){
-      rot = (rotationMap[p.added]||0) + (albumRotations[currentAlbum]||0);
-      applyTransform();
+    if(p){
+      const inAlbum = currentAlbum==='all' || (p.albums||[]).includes(currentAlbum);
+      if(inAlbum){
+        rot = (rotationMap[p.added]||0) + (albumRotations[currentAlbum]||0);
+        applyTransform();
+      }
     }
   }
-  showToast(`Album rotated ${deg>0?'right':'left'} ✓`);
+  showToast(`All photos rotated ${deg>0?'right':'left'} ✓`);
 }
 function zoomBy(delta){ scale=Math.max(1,Math.min(8,scale+delta)); if(scale===1){panX=0;panY=0;} applyTransform(); }
 function resetTransform(animate){ rot=0;scale=1;panX=0;panY=0; applyTransform(animate); }
