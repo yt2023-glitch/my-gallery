@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Forbidden Heaven</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Playfair+Display:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{--bg:#0f0f0f;--surface:#1a1a1a;--surface2:#222;--border:#2e2e2e;--text:#e8e6e0;--muted:#888;--accent:#c8a96e;--accent2:#e8d5b0;--radius:10px;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -158,8 +159,19 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .album-card:hover img{transform:scale(1.05);}
 .album-card-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--border);}
 .album-card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.82) 0%,transparent 55%);display:flex;flex-direction:column;justify-content:flex-end;padding:10px 11px;}
-.album-card-name{font-size:13px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.album-card-count{font-size:11px;color:rgba(255,255,255,.55);margin-top:2px;}
+.album-card-actions{position:absolute;top:7px;right:7px;display:flex;flex-direction:column;gap:4px;opacity:0;transition:opacity .2s;}
+.album-card:hover .album-card-actions{opacity:1;}
+.album-card-btn{background:rgba(0,0,0,.65);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;}
+.album-card-btn:hover{background:rgba(200,169,110,.85);color:#1a1200;}
+.album-card-checkbox{position:absolute;top:8px;left:8px;width:18px;height:18px;cursor:pointer;accent-color:var(--accent);display:none;z-index:2;}
+.album-select-mode .album-card-checkbox{display:block;}
+.album-card.album-selected{outline:2px solid var(--accent);outline-offset:-2px;}
+#album-bulk-bar{display:none;position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--accent);padding:10px 40px;flex-direction:row;align-items:center;gap:10px;z-index:100;flex-wrap:wrap;}
+#album-bulk-bar.open{display:flex;}
+#zip-progress{display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--accent);color:var(--text);padding:10px 18px;border-radius:10px;font-size:12px;z-index:99999;min-width:220px;text-align:center;}
+#zip-progress-bar-wrap{background:var(--surface2);border-radius:999px;height:4px;margin-top:7px;overflow:hidden;}
+#zip-progress-bar{height:100%;background:var(--accent);border-radius:999px;width:0%;transition:width .2s;}
+@media(max-width:600px){#album-bulk-bar{padding:9px 14px;flex-wrap:wrap;}}
 .back-btn{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 13px;border-radius:var(--radius);font-size:13px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;}
 .back-btn:hover{border-color:var(--accent);color:var(--accent);}
 #photo-view-header{padding:10px 40px 0;display:none;align-items:center;gap:12px;}
@@ -289,11 +301,26 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     <button title="Medium" onclick="setAlbumGridSize('md')" id="ags-md" class="active">⊞</button>
     <button title="Large" onclick="setAlbumGridSize('lg')" id="ags-lg">⬛</button>
   </div>
+  <button class="btn" id="album-select-btn" onclick="toggleAlbumSelectMode()">☑ Select</button>
 </div>
 
 <!-- ALBUM HOME VIEW -->
 <div id="album-home">
   <div class="album-home-grid ags-md" id="album-home-grid"></div>
+</div>
+
+<!-- ALBUM BULK SELECT BAR -->
+<div id="album-bulk-bar">
+  <span id="album-selected-count" style="font-size:13px;color:var(--muted);">0 selected</span>
+  <button class="btn" onclick="selectAllAlbums()">Select All</button>
+  <button class="btn primary" onclick="downloadSelectedAlbumsZip()">⬇ Download ZIP</button>
+  <button class="btn" style="margin-left:auto;" onclick="toggleAlbumSelectMode()">Done</button>
+</div>
+
+<!-- ZIP PROGRESS -->
+<div id="zip-progress">
+  <div id="zip-progress-label">Preparing ZIP…</div>
+  <div id="zip-progress-bar-wrap"><div id="zip-progress-bar"></div></div>
 </div>
 
 <!-- PHOTO VIEW HEADER (back button + album name) -->
@@ -333,6 +360,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 <div id="bulk-select-bar">
   <span id="selected-count" style="font-size:13px;color:var(--muted);">0 selected</span>
   <button class="btn" onclick="selectAll()">Select All</button>
+  <button class="btn primary" onclick="downloadSelectedPhotosZip()">⬇ Download ZIP</button>
   <button class="btn danger" onclick="bulkDelete()">🗑 Delete Selected</button>
   <button class="btn" style="margin-left:auto;" onclick="toggleSelectMode()">Done</button>
 </div>
@@ -473,6 +501,8 @@ const rotationMap = {};
 let gridSize = 'md';
 let selectMode = false;
 let selectedIds = new Set();
+let albumSelectMode = false;
+let selectedAlbums = new Set();
 let ssTimer = null, ssRunning = false;
 let uiHideTimer = null;
 let pendingFiles = [];
@@ -570,6 +600,7 @@ function updateStorageBadge(){
 // NAV: HOME / ALBUM VIEW
 function goHome(){
   currentAlbum='all';
+  if(albumSelectMode) toggleAlbumSelectMode();
   document.getElementById('album-home-toolbar').style.display='flex';
   document.getElementById('album-home').style.display='';
   document.getElementById('photo-view-header').classList.remove('visible');
@@ -619,12 +650,26 @@ function renderAlbumHome(){
 
   const makeCard=(key,label,count,coverUrl)=>{
     const card=document.createElement('div'); card.className='album-card';
+    const isSpecial=(key==='all'||key==='starred');
     if(coverUrl){
-      card.innerHTML=`<img src="${coverUrl}" alt="${label}" loading="lazy"><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>`;
+      card.innerHTML=`<img src="${coverUrl}" alt="${label}" loading="lazy"><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions"><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${key.replace(/'/g,"\\'")}')">⬇</button></div>`:'' }`;
     } else {
-      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>`;
+      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions"><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${key.replace(/'/g,"\\'")}')">⬇</button></div>`:'' }`;
     }
-    card.addEventListener('click',()=>openAlbumView(key));
+    // checkbox toggle
+    const cb=card.querySelector('.album-card-checkbox');
+    if(cb) cb.addEventListener('change',()=>{
+      if(cb.checked){selectedAlbums.add(key);card.classList.add('album-selected');}
+      else{selectedAlbums.delete(key);card.classList.remove('album-selected');}
+      updateAlbumSelectedCount();
+    });
+    card.addEventListener('click',()=>{
+      if(albumSelectMode){
+        if(!isSpecial){cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'));}
+        return;
+      }
+      openAlbumView(key);
+    });
     return card;
   };
 
@@ -700,6 +745,143 @@ function deleteAlbum(i){
   data.photos.forEach(p=>{if(p.albums) p.albums=p.albums.filter(a=>a!==name);});
   if(currentAlbum===name) currentAlbum='all';
   saveAlbums(); renderTabs(); renderAlbumList(); renderAlbumHome();
+}
+
+// ALBUM SELECT MODE
+function toggleAlbumSelectMode(){
+  albumSelectMode=!albumSelectMode;
+  selectedAlbums.clear();
+  document.getElementById('album-select-btn').classList.toggle('active',albumSelectMode);
+  document.getElementById('album-bulk-bar').classList.toggle('open',albumSelectMode);
+  document.getElementById('album-home-grid').classList.toggle('album-select-mode',albumSelectMode);
+  // uncheck all
+  document.querySelectorAll('.album-card-checkbox').forEach(cb=>{cb.checked=false;});
+  document.querySelectorAll('.album-card').forEach(c=>c.classList.remove('album-selected'));
+  updateAlbumSelectedCount();
+}
+function updateAlbumSelectedCount(){
+  document.getElementById('album-selected-count').textContent=`${selectedAlbums.size} selected`;
+}
+function selectAllAlbums(){
+  document.querySelectorAll('.album-card-checkbox').forEach(cb=>{
+    cb.checked=true; selectedAlbums.add(cb.dataset.key);
+    cb.closest('.album-card').classList.add('album-selected');
+  });
+  updateAlbumSelectedCount();
+}
+
+// ZIP HELPERS
+function showZipProgress(label,pct){
+  const el=document.getElementById('zip-progress');
+  el.style.display='block';
+  document.getElementById('zip-progress-label').textContent=label;
+  document.getElementById('zip-progress-bar').style.width=pct+'%';
+}
+function hideZipProgress(){ document.getElementById('zip-progress').style.display='none'; }
+
+async function fetchImageBlob(url){
+  // Try direct fetch; fall back to a proxy-friendly approach if CORS blocks
+  try{
+    const r=await fetch(url); if(!r.ok) throw new Error('fetch failed');
+    return await r.blob();
+  }catch(e){
+    // fallback: fetch via no-cors (gets opaque blob, still works for zip binary)
+    const r=await fetch(url,{mode:'no-cors'});
+    return await r.blob();
+  }
+}
+
+function sanitizeFilename(name){ return name.replace(/[\\/:*?"<>|]/g,'_')||'photo'; }
+
+async function buildAlbumZip(albumKey, albumLabel, zip, folder){
+  const photos = albumKey==='all'
+    ? data.photos
+    : albumKey==='starred'
+      ? data.photos.filter(p=>starredIds.has(String(p.added)))
+      : data.photos.filter(p=>(p.albums||[]).includes(albumKey));
+  const dir = folder || zip;
+  let done=0;
+  for(const p of photos){
+    try{
+      const blob=await fetchImageBlob(p.url);
+      const ext=p.url.split('.').pop().split('?')[0].toLowerCase()||'jpg';
+      const fname=sanitizeFilename(p.name)+'.'+ext;
+      dir.file(fname,blob);
+    }catch(e){ /* skip failed images */ }
+    done++;
+    showZipProgress(`${albumLabel}: ${done}/${photos.length}`, Math.round(done/photos.length*100));
+  }
+}
+
+// SINGLE ALBUM DOWNLOAD
+async function downloadAlbumZip(albumKey){
+  const label = albumKey==='all'?'All Photos':albumKey==='starred'?'Starred':albumKey;
+  const photos = albumKey==='all'
+    ? data.photos
+    : albumKey==='starred'
+      ? data.photos.filter(p=>starredIds.has(String(p.added)))
+      : data.photos.filter(p=>(p.albums||[]).includes(albumKey));
+  if(!photos.length){ showToast('No photos in this album.',true); return; }
+  showZipProgress(`Preparing "${label}"… 0/${photos.length}`, 0);
+  try{
+    const zip=new JSZip();
+    await buildAlbumZip(albumKey, label, zip, zip);
+    showZipProgress('Generating ZIP file…',100);
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=sanitizeFilename(label)+'.zip'; a.click();
+    showToast(`"${label}" downloaded ✓`);
+  }catch(e){ showToast('ZIP failed: '+e.message,true); }
+  finally{ hideZipProgress(); }
+}
+
+// MULTIPLE ALBUMS DOWNLOAD
+async function downloadSelectedAlbumsZip(){
+  if(!selectedAlbums.size){ showToast('No albums selected.',true); return; }
+  const keys=[...selectedAlbums];
+  const zip=new JSZip();
+  showZipProgress('Starting…',0);
+  try{
+    for(let i=0;i<keys.length;i++){
+      const key=keys[i];
+      const label=key==='all'?'All Photos':key==='starred'?'Starred':key;
+      const folder=zip.folder(sanitizeFilename(label));
+      showZipProgress(`Album ${i+1}/${keys.length}: "${label}"`,Math.round(i/keys.length*100));
+      await buildAlbumZip(key,label,zip,folder);
+    }
+    showZipProgress('Generating ZIP file…',100);
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='albums.zip'; a.click();
+    showToast(`${keys.length} album${keys.length>1?'s':''} downloaded ✓`);
+    toggleAlbumSelectMode();
+  }catch(e){ showToast('ZIP failed: '+e.message,true); }
+  finally{ hideZipProgress(); }
+}
+
+// SELECTED PHOTOS DOWNLOAD (inside album)
+async function downloadSelectedPhotosZip(){
+  if(!selectedIds.size){ showToast('No photos selected.',true); return; }
+  const photos=data.photos.filter(p=>selectedIds.has(String(p.added)));
+  showZipProgress(`Preparing ${photos.length} photo${photos.length>1?'s':''}…`,0);
+  try{
+    const zip=new JSZip(); let done=0;
+    for(const p of photos){
+      try{
+        const blob=await fetchImageBlob(p.url);
+        const ext=p.url.split('.').pop().split('?')[0].toLowerCase()||'jpg';
+        zip.file(sanitizeFilename(p.name)+'.'+ext,blob);
+      }catch(e){ /* skip */ }
+      done++;
+      showZipProgress(`${done}/${photos.length} photos…`,Math.round(done/photos.length*100));
+    }
+    showZipProgress('Generating ZIP file…',100);
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='photos.zip'; a.click();
+    showToast(`${photos.length} photo${photos.length>1?'s':''} downloaded ✓`);
+  }catch(e){ showToast('ZIP failed: '+e.message,true); }
+  finally{ hideZipProgress(); }
 }
 
 // STAR
