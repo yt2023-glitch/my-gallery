@@ -350,6 +350,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     <button title="Masonry" onclick="setGridSize('masonry')" id="gs-masonry">⧉</button>
   </div>
   <button class="btn" id="select-mode-btn" onclick="toggleSelectMode()">☑ Select</button>
+  <button class="btn" id="album-rot-left-btn" title="Rotate all photos in this album 90° left" onclick="rotateAlbum(-90)" style="display:none;">↺ Rotate All</button>
+  <button class="btn" id="album-rot-right-btn" title="Rotate all photos in this album 90° right" onclick="rotateAlbum(90)" style="display:none;">↻ Rotate All</button>
 </div>
 
 <div class="gallery-wrap" id="gallery-wrap" style="display:none;">
@@ -521,6 +523,7 @@ let pendingFiles = [];
 let recycleBin = JSON.parse(localStorage.getItem('gallery_recycle')||'[]');
 let starredIds = new Set(JSON.parse(localStorage.getItem('gallery_starred')||'[]'));
 let albumCovers = JSON.parse(localStorage.getItem('gallery_covers')||'{}');
+let albumRotations = JSON.parse(localStorage.getItem('gallery_album_rotations')||'{}');
 const rotationMap = JSON.parse(localStorage.getItem('gallery_rotations')||'{}');
 
 // Clear legacy default albums if they were never customised
@@ -633,6 +636,8 @@ function goHome(){
   document.getElementById('sort-filter-bar').style.display='none';
   document.getElementById('gallery-wrap').style.display='none';
   document.getElementById('bulk-select-bar').classList.remove('open');
+  document.getElementById('album-rot-left-btn').style.display='none';
+  document.getElementById('album-rot-right-btn').style.display='none';
   selectMode=false; selectedIds.clear();
   document.getElementById('select-mode-btn').classList.remove('active');
   renderAlbumHome();
@@ -646,6 +651,10 @@ function openAlbumView(albumKey){
   document.getElementById('sort-filter-bar').style.display='flex';
   document.getElementById('gallery-wrap').style.display='';
   document.getElementById('search-input').value='';
+  // Show rotate buttons only for real (named) albums
+  const showRot = (albumKey !== 'all' && albumKey !== 'starred');
+  document.getElementById('album-rot-left-btn').style.display = showRot ? '' : 'none';
+  document.getElementById('album-rot-right-btn').style.display = showRot ? '' : 'none';
   renderGrid();
 }
 let albumGridSize='md';
@@ -1163,7 +1172,9 @@ function showLbPhoto(){
   const p=lbPhotos[lbIndex];
   const img=document.getElementById('lb-img');
   img.classList.add('fade');
-  rot=rotationMap[p.added]||0; scale=1; panX=0; panY=0;
+  const albumOffset = (currentAlbum && currentAlbum!=='all' && currentAlbum!=='starred')
+    ? (albumRotations[currentAlbum]||0) : 0;
+  rot=(rotationMap[p.added]||0) + albumOffset; scale=1; panX=0; panY=0;
   applyTransform(false);
   setTimeout(()=>{img.src=p.url;img.classList.remove('fade');},150);
   document.getElementById('lb-title').textContent=p.name;
@@ -1206,6 +1217,22 @@ function rotate(deg){
   rot+=deg;
   const p=lbPhotos[lbIndex]; if(p){ rotationMap[p.added]=rot; localStorage.setItem('gallery_rotations',JSON.stringify(rotationMap)); }
   applyTransform();
+}
+
+// Rotate all images in the current album (applies in lightbox only, thumbnails unaffected)
+function rotateAlbum(deg){
+  if(!currentAlbum || currentAlbum==='all' || currentAlbum==='starred') return;
+  albumRotations[currentAlbum] = ((albumRotations[currentAlbum]||0) + deg + 360) % 360;
+  localStorage.setItem('gallery_album_rotations', JSON.stringify(albumRotations));
+  // If lightbox is open and showing a photo from this album, update it live
+  if(document.getElementById('lb').classList.contains('open')){
+    const p=lbPhotos[lbIndex];
+    if(p && (p.albums||[]).includes(currentAlbum)){
+      rot = (rotationMap[p.added]||0) + (albumRotations[currentAlbum]||0);
+      applyTransform();
+    }
+  }
+  showToast(`Album rotated ${deg>0?'right':'left'} ✓`);
 }
 function zoomBy(delta){ scale=Math.max(1,Math.min(8,scale+delta)); if(scale===1){panX=0;panY=0;} applyTransform(); }
 function resetTransform(animate){ rot=0;scale=1;panX=0;panY=0; applyTransform(animate); }
