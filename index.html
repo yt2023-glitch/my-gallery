@@ -791,8 +791,12 @@ function openLb(index,photos){
 }
 function closeLb(){
   stopSlideshow();
-  document.getElementById('lb').classList.remove('open');
-  document.body.style.overflow='';
+  if(document.fullscreenElement){
+    document.exitFullscreen().finally(()=>{setFsStyles(false);document.getElementById('lb').classList.remove('open');document.body.style.overflow='';});
+  } else {
+    document.getElementById('lb').classList.remove('open');
+    document.body.style.overflow='';
+  }
 }
 function showLbPhoto(){
   const p=lbPhotos[lbIndex];
