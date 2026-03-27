@@ -235,7 +235,6 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     <span class="storage-badge" id="storage-badge">📷 0 photos</span>
     <button class="btn" onclick="openRecycleBin()">🗑 Bin</button>
     <button class="btn" onclick="openAlbumModal()">⊞ Albums</button>
-    <button class="btn" id="select-mode-btn" onclick="toggleSelectMode()">☑ Select</button>
     <button class="btn" onclick="openSettingsModal()">⚙ Settings</button>
     <button class="btn primary" onclick="toggleAddPanel()">＋ Add</button>
   </div>
@@ -350,6 +349,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     <button title="Large" onclick="setGridSize('lg')" id="gs-lg">⬛</button>
     <button title="Masonry" onclick="setGridSize('masonry')" id="gs-masonry">⧉</button>
   </div>
+  <button class="btn" id="select-mode-btn" onclick="toggleSelectMode()">☑ Select</button>
 </div>
 
 <div class="gallery-wrap" id="gallery-wrap" style="display:none;">
@@ -492,7 +492,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 const API = 'https://script.google.com/macros/s/AKfycbxNq9RrSAe1WsPou2rvCY5VJcAFSPUBLqM7KrZ1fiweclLKwIehbWWC7kGQfQHoT9Bt2Q/exec';
 const IMGBB_KEY = '0d097706b237d98b5ac6cf1b00cb40f7';
 
-let data = { albums:['Favourites','Nature','Travel'], photos:[] };
+let data = { albums:[], photos:[] };
 let currentAlbum = 'all';
 let lbIndex = 0, lbPhotos = [];
 let rot = 0, scale = 1, panX = 0, panY = 0;
@@ -509,6 +509,19 @@ let pendingFiles = [];
 let recycleBin = JSON.parse(localStorage.getItem('gallery_recycle')||'[]');
 let starredIds = new Set(JSON.parse(localStorage.getItem('gallery_starred')||'[]'));
 let albumCovers = JSON.parse(localStorage.getItem('gallery_covers')||'{}');
+
+// Clear legacy default albums if they were never customised
+(function(){
+  const raw = localStorage.getItem('gallery_albums');
+  if(!raw) return;
+  try {
+    const arr = JSON.parse(raw);
+    // If the saved list is exactly the old defaults (all three, no user albums), wipe it
+    const oldDefaults = ['Favourites','Nature','Travel','Favorites'];
+    const isOnlyDefaults = arr.every(a=>oldDefaults.includes(a));
+    if(isOnlyDefaults) localStorage.removeItem('gallery_albums');
+  } catch(e){}
+})();
 
 // Site settings
 let siteSettings = JSON.parse(localStorage.getItem('gallery_settings') || JSON.stringify({
@@ -556,7 +569,7 @@ async function apiGet() {
       return p;
     });
     const fromPhotos = [...new Set(data.photos.flatMap(p=>p.albums).filter(Boolean))];
-    const saved = JSON.parse(localStorage.getItem('gallery_albums')||'["Favourites","Nature","Travel"]');
+    const saved = JSON.parse(localStorage.getItem('gallery_albums')||'[]');
     data.albums = [...new Set([...saved,...fromPhotos])];
     // Load covers from sheet
     if (json.covers) {
