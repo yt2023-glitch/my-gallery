@@ -909,7 +909,7 @@ imgWrap.addEventListener('touchstart',e=>{
     pinchStartScale=scale;
     startX=(e.touches[0].clientX+e.touches[1].clientX)/2;
     startY=(e.touches[0].clientY+e.touches[1].clientY)/2;
-    startPanX=panX; startPanY=panY;
+    startPanX=scale<=1?0:panX; startPanY=scale<=1?0:panY;
   } else if(e.touches.length===1 && !isPinching){
     isPinching=false;
     swipeStartX=e.touches[0].clientX;
@@ -930,10 +930,8 @@ imgWrap.addEventListener('touchmove',e=>{
     const dist=getTouchDist(e.touches);
     const newScale=Math.max(1,Math.min(8,pinchStartScale*(dist/pinchStartDist)));
     scale=newScale;
-    const midX=(e.touches[0].clientX+e.touches[1].clientX)/2;
-    const midY=(e.touches[0].clientY+e.touches[1].clientY)/2;
-    panX=startPanX+(midX-startX);
-    panY=startPanY+(midY-startY);
+    if(scale===1){panX=0;panY=0;}
+    else{const midX=(e.touches[0].clientX+e.touches[1].clientX)/2;const midY=(e.touches[0].clientY+e.touches[1].clientY)/2;panX=startPanX+(midX-startX);panY=startPanY+(midY-startY);}
     applyTransform(false);
   } else if(e.touches.length===1 && isDragging && !isPinching && scale>1){
     panX=startPanX+e.touches[0].clientX-startX;
@@ -945,7 +943,7 @@ imgWrap.addEventListener('touchmove',e=>{
 imgWrap.addEventListener('touchend',e=>{
   if(e.touches.length===0){
     if(isPinching){
-      if(scale<1){scale=1;panX=0;panY=0;applyTransform();}
+      if(scale<=1){scale=1;panX=0;panY=0;applyTransform();}
       isPinching=false;
       isDragging=false;
       return;
