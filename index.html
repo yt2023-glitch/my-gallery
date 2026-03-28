@@ -198,6 +198,17 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .logo-drop{border:2px dashed var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer;font-size:12px;color:var(--muted);transition:all .2s;}
 .logo-drop:hover,.logo-drop.dragover{border-color:var(--accent);color:var(--accent);}
 .settings-section{display:flex;flex-direction:column;gap:8px;}
+#cover-adjust-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:99995;align-items:center;justify-content:center;}
+#cover-adjust-modal.open{display:flex;}
+.cover-adjust-box{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:20px;width:340px;max-width:95vw;display:flex;flex-direction:column;gap:14px;}
+.cover-adjust-box h3{font-family:'Playfair Display',serif;font-size:16px;color:var(--accent2);}
+.cover-adjust-hint{font-size:11px;color:var(--muted);text-align:center;margin-top:-6px;}
+.cover-adjust-frame{width:100%;aspect-ratio:1;border-radius:10px;overflow:hidden;border:2px solid var(--accent);position:relative;cursor:grab;user-select:none;background:var(--bg);}
+.cover-adjust-frame.dragging{cursor:grabbing;}
+.cover-adjust-frame img{position:absolute;top:50%;left:50%;transform-origin:center center;display:block;pointer-events:none;max-width:none;max-height:none;}
+.cover-zoom-row{display:flex;align-items:center;gap:10px;}
+.cover-zoom-label{font-size:11px;color:var(--muted);white-space:nowrap;min-width:38px;text-align:right;}
+.cover-zoom-slider{flex:1;accent-color:var(--accent);cursor:pointer;}
 .settings-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
 .settings-divider{border:none;border-top:1px solid var(--border);margin:4px 0;}
 @media(max-width:600px){
@@ -476,6 +487,26 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   </div>
 </div>
 
+<div id="cover-adjust-modal">
+  <div class="cover-adjust-box">
+    <h3>✥ Adjust Cover</h3>
+    <p class="cover-adjust-hint">Drag to pan · Scroll or pinch to zoom</p>
+    <div class="cover-adjust-frame" id="cover-adjust-frame">
+      <img id="cover-adjust-img" src="" alt="">
+    </div>
+    <div class="cover-zoom-row">
+      <span style="font-size:13px;">🔍</span>
+      <input type="range" class="cover-zoom-slider" id="cover-zoom-slider" min="50" max="400" value="100" step="1" oninput="onZoomSlider(this.value)">
+      <span class="cover-zoom-label" id="cover-zoom-label">100%</span>
+    </div>
+    <button class="btn" id="cover-adjust-reset" onclick="resetCoverPosition()" style="align-self:center;font-size:12px;padding:5px 14px;">↺ Reset</button>
+    <div class="row" style="justify-content:flex-end;">
+      <button class="btn" onclick="closeCoverAdjust()">Cancel</button>
+      <button class="btn primary" onclick="saveCoverPosition()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="recycle-modal">
   <div class="modal-box" style="width:500px;">
     <h3>🗑 Recycle Bin</h3>
@@ -548,6 +579,7 @@ let pendingFiles = [];
 let recycleBin = JSON.parse(localStorage.getItem('gallery_recycle')||'[]');
 let starredIds = new Set(JSON.parse(localStorage.getItem('gallery_starred')||'[]'));
 let albumCovers = JSON.parse(localStorage.getItem('gallery_covers')||'{}');
+let albumCoverPositions = JSON.parse(localStorage.getItem('gallery_cover_positions')||'{}');
 let albumRotations = JSON.parse(localStorage.getItem('gallery_album_rotations')||'{}');
 const rotationMap = JSON.parse(localStorage.getItem('gallery_rotations')||'{}');
 
@@ -617,6 +649,10 @@ async function apiGet() {
       albumCovers = json.covers;
       saveCovers();
     }
+    if (json.coverPositions) {
+      albumCoverPositions = json.coverPositions;
+      saveCoverPositions();
+    }
     // Load settings from sheet (overrides localStorage)
     if (json.settings && Object.keys(json.settings).length > 0) {
       siteSettings = {
@@ -637,6 +673,7 @@ async function apiPost(payload) {
 function saveAlbums(){ localStorage.setItem('gallery_albums',JSON.stringify(data.albums)); }
 function saveStarred(){ localStorage.setItem('gallery_starred',JSON.stringify([...starredIds])); }
 function saveCovers(){ localStorage.setItem('gallery_covers',JSON.stringify(albumCovers)); }
+function saveCoverPositions(){ localStorage.setItem('gallery_cover_positions',JSON.stringify(albumCoverPositions)); }
 function saveRecycle(){ localStorage.setItem('gallery_recycle',JSON.stringify(recycleBin)); }
 
 function showToast(msg,isError) {
@@ -711,10 +748,27 @@ function renderAlbumHome(){
   const makeCard=(key,label,count,coverUrl)=>{
     const card=document.createElement('div'); card.className='album-card';
     const isSpecial=(key==='all'||key==='starred');
+    const savedAdj = albumCoverPositions[key];
+    let imgStyle = '';
+    if (savedAdj && coverUrl) {
+      const ox = savedAdj.x !== undefined ? savedAdj.x : 0;
+      const oy = savedAdj.y !== undefined ? savedAdj.y : 0;
+      const zoom = savedAdj.zoom !== undefined ? savedAdj.zoom : 100;
+      // Use same transform approach as the adjuster for pixel-perfect match
+      imgStyle = `style="position:absolute;top:50%;left:50%;transform:translate(calc(-50% + ${ox}px),calc(-50% + ${oy}px)) scale(${zoom/100});transform-origin:center center;max-width:none;max-height:none;"`;
+    }
+    const safeKey=key.replace(/'/g,"\\'");
+    const actions=!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions"><button class="album-card-btn" title="Adjust cover" onclick="event.stopPropagation();openCoverAdjust('${safeKey}')">✥</button><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${safeKey}')">⬇</button></div>`:'';
     if(coverUrl){
-      card.innerHTML=`<img src="${coverUrl}" alt="${label}" loading="lazy"><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions"><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${key.replace(/'/g,"\\'")}')">⬇</button></div>`:'' }`;
+      const defaultImgStyle = 'style="width:100%;height:100%;object-fit:cover;"';
+      card.innerHTML=`<div style="position:absolute;inset:0;overflow:hidden;border-radius:8px;"><img src="${coverUrl}" alt="${label}" loading="lazy" ${imgStyle||defaultImgStyle}></div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
+      // If adjusted, set natural dimensions after load for correct transform scaling
+      if(imgStyle){
+        const cardImg=card.querySelector('img');
+        cardImg.onload=function(){ cardImg.style.width=cardImg.naturalWidth+'px'; cardImg.style.height=cardImg.naturalHeight+'px'; };
+      }
     } else {
-      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions"><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${key.replace(/'/g,"\\'")}')">⬇</button></div>`:'' }`;
+      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
     }
     // checkbox toggle
     const cb=card.querySelector('.album-card-checkbox');
@@ -973,6 +1027,195 @@ async function setCoverPhoto(url, album) {
   renderAlbumHome();
   await apiPost({ action: 'cover', album, url });
   showToast(`Cover set for "${album}" ✓`);
+}
+
+// COVER POSITION + ZOOM ADJUST
+let _coverAdjAlbum = '';
+let _coverAdjZoom = 100;   // percent, 50–400
+let _coverAdjX = 0;        // pixel offset from center
+let _coverAdjY = 0;
+let _coverAdjImgW = 0, _coverAdjImgH = 0; // natural image size
+let _coverAdjFrameSize = 0; // frame pixel size (square)
+let _coverAdjDragging = false;
+let _coverAdjStartMouseX, _coverAdjStartMouseY, _coverAdjStartX, _coverAdjStartY;
+let _coverAdjPinching = false, _coverAdjPinchDist0 = 0, _coverAdjPinchZoom0 = 0;
+
+function _coverAdjApply() {
+  const img = document.getElementById('cover-adjust-img');
+  const fs = _coverAdjFrameSize || 300;
+  const w = _coverAdjImgW * _coverAdjZoom / 100;
+  const h = _coverAdjImgH * _coverAdjZoom / 100;
+  // Clamp offsets so image always covers the frame
+  const maxX = Math.max(0, (w - fs) / 2);
+  const maxY = Math.max(0, (h - fs) / 2);
+  _coverAdjX = Math.max(-maxX, Math.min(maxX, _coverAdjX));
+  _coverAdjY = Math.max(-maxY, Math.min(maxY, _coverAdjY));
+  img.style.transform = `translate(calc(-50% + ${_coverAdjX}px), calc(-50% + ${_coverAdjY}px)) scale(${_coverAdjZoom / 100})`;
+  img.style.transformOrigin = 'center center';
+  img.style.width = _coverAdjImgW + 'px';
+  img.style.height = _coverAdjImgH + 'px';
+  // Update slider
+  const slider = document.getElementById('cover-zoom-slider');
+  const label = document.getElementById('cover-zoom-label');
+  if (slider) slider.value = _coverAdjZoom;
+  if (label) label.textContent = Math.round(_coverAdjZoom) + '%';
+}
+
+function openCoverAdjust(album) {
+  const url = albumCovers[album];
+  if (!url) { showToast('Set a cover photo first.', true); return; }
+  _coverAdjAlbum = album;
+  const saved = albumCoverPositions[album];
+  _coverAdjZoom = (saved && saved.zoom) ? saved.zoom : 100;
+  _coverAdjX = (saved && saved.x !== undefined) ? saved.x : 0;
+  _coverAdjY = (saved && saved.y !== undefined) ? saved.y : 0;
+
+  const modal = document.getElementById('cover-adjust-modal');
+  modal.classList.add('open');
+
+  const img = document.getElementById('cover-adjust-img');
+  img.src = '';
+  img.style.transform = '';
+  img.onload = () => {
+    _coverAdjImgW = img.naturalWidth;
+    _coverAdjImgH = img.naturalHeight;
+    const frame = document.getElementById('cover-adjust-frame');
+    _coverAdjFrameSize = frame.getBoundingClientRect().width;
+    // If no saved state, fit image to cover the frame (like object-fit:cover)
+    if (!saved) {
+      const scaleToFit = Math.max(_coverAdjFrameSize / _coverAdjImgW, _coverAdjFrameSize / _coverAdjImgH) * 100;
+      _coverAdjZoom = Math.max(100, scaleToFit);
+      _coverAdjX = 0; _coverAdjY = 0;
+    }
+    _coverAdjApply();
+  };
+  img.src = url;
+  document.getElementById('cover-zoom-slider').value = _coverAdjZoom;
+  document.getElementById('cover-zoom-label').textContent = Math.round(_coverAdjZoom) + '%';
+  initCoverAdjustEvents();
+}
+
+function closeCoverAdjust() {
+  document.getElementById('cover-adjust-modal').classList.remove('open');
+  cleanupCoverAdjustEvents();
+}
+
+function resetCoverPosition() {
+  if (!_coverAdjImgW) return;
+  const scaleToFit = Math.max(_coverAdjFrameSize / _coverAdjImgW, _coverAdjFrameSize / _coverAdjImgH) * 100;
+  _coverAdjZoom = Math.max(100, scaleToFit);
+  _coverAdjX = 0; _coverAdjY = 0;
+  _coverAdjApply();
+}
+
+function onZoomSlider(val) {
+  _coverAdjZoom = parseFloat(val);
+  _coverAdjApply();
+}
+
+async function saveCoverPosition() {
+  albumCoverPositions[_coverAdjAlbum] = { x: _coverAdjX, y: _coverAdjY, zoom: _coverAdjZoom };
+  saveCoverPositions();
+  closeCoverAdjust();
+  renderAlbumHome();
+  showToast('Saving…');
+  await apiPost({ action: 'coverPosition', album: _coverAdjAlbum, position: albumCoverPositions[_coverAdjAlbum] });
+  showToast('Cover saved ✓');
+}
+
+function initCoverAdjustEvents() {
+  const frame = document.getElementById('cover-adjust-frame');
+  frame.addEventListener('mousedown', _cadMouseDown);
+  frame.addEventListener('wheel', _cadWheel, { passive: false });
+  frame.addEventListener('touchstart', _cadTouchStart, { passive: false });
+}
+function cleanupCoverAdjustEvents() {
+  const frame = document.getElementById('cover-adjust-frame');
+  if (!frame) return;
+  frame.removeEventListener('mousedown', _cadMouseDown);
+  frame.removeEventListener('wheel', _cadWheel);
+  frame.removeEventListener('touchstart', _cadTouchStart);
+  document.removeEventListener('mousemove', _cadMouseMove);
+  document.removeEventListener('mouseup', _cadMouseUp);
+  document.removeEventListener('touchmove', _cadTouchMove);
+  document.removeEventListener('touchend', _cadTouchEnd);
+}
+
+function _cadMouseDown(e) {
+  e.preventDefault();
+  _coverAdjDragging = true;
+  _coverAdjStartMouseX = e.clientX; _coverAdjStartMouseY = e.clientY;
+  _coverAdjStartX = _coverAdjX; _coverAdjStartY = _coverAdjY;
+  document.getElementById('cover-adjust-frame').classList.add('dragging');
+  document.addEventListener('mousemove', _cadMouseMove);
+  document.addEventListener('mouseup', _cadMouseUp);
+}
+function _cadMouseMove(e) {
+  if (!_coverAdjDragging) return;
+  _coverAdjX = _coverAdjStartX + (e.clientX - _coverAdjStartMouseX);
+  _coverAdjY = _coverAdjStartY + (e.clientY - _coverAdjStartMouseY);
+  _coverAdjApply();
+}
+function _cadMouseUp() {
+  _coverAdjDragging = false;
+  document.getElementById('cover-adjust-frame').classList.remove('dragging');
+  document.removeEventListener('mousemove', _cadMouseMove);
+  document.removeEventListener('mouseup', _cadMouseUp);
+}
+
+function _cadWheel(e) {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? -5 : 5;
+  _coverAdjZoom = Math.max(50, Math.min(400, _coverAdjZoom + delta));
+  _coverAdjApply();
+}
+
+function _cadTouchStart(e) {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    _coverAdjDragging = true; _coverAdjPinching = false;
+    _coverAdjStartMouseX = e.touches[0].clientX;
+    _coverAdjStartMouseY = e.touches[0].clientY;
+    _coverAdjStartX = _coverAdjX; _coverAdjStartY = _coverAdjY;
+    document.getElementById('cover-adjust-frame').classList.add('dragging');
+  } else if (e.touches.length === 2) {
+    _coverAdjDragging = false; _coverAdjPinching = true;
+    document.getElementById('cover-adjust-frame').classList.remove('dragging');
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    _coverAdjPinchDist0 = Math.hypot(dx, dy);
+    _coverAdjPinchZoom0 = _coverAdjZoom;
+  }
+  document.addEventListener('touchmove', _cadTouchMove, { passive: false });
+  document.addEventListener('touchend', _cadTouchEnd);
+}
+function _cadTouchMove(e) {
+  e.preventDefault();
+  if (_coverAdjDragging && e.touches.length === 1) {
+    _coverAdjX = _coverAdjStartX + (e.touches[0].clientX - _coverAdjStartMouseX);
+    _coverAdjY = _coverAdjStartY + (e.touches[0].clientY - _coverAdjStartMouseY);
+    _coverAdjApply();
+  } else if (_coverAdjPinching && e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+    _coverAdjZoom = Math.max(50, Math.min(400, _coverAdjPinchZoom0 * dist / _coverAdjPinchDist0));
+    _coverAdjApply();
+  }
+}
+function _cadTouchEnd(e) {
+  if (e.touches.length === 0) {
+    _coverAdjDragging = false; _coverAdjPinching = false;
+    document.getElementById('cover-adjust-frame').classList.remove('dragging');
+    document.removeEventListener('touchmove', _cadTouchMove);
+    document.removeEventListener('touchend', _cadTouchEnd);
+  } else if (e.touches.length === 1 && _coverAdjPinching) {
+    // went from 2-finger to 1-finger: switch to drag
+    _coverAdjPinching = false; _coverAdjDragging = true;
+    _coverAdjStartMouseX = e.touches[0].clientX;
+    _coverAdjStartMouseY = e.touches[0].clientY;
+    _coverAdjStartX = _coverAdjX; _coverAdjStartY = _coverAdjY;
+  }
 }
 
 // RENAME
