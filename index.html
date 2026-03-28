@@ -496,7 +496,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     </div>
     <div class="cover-zoom-row">
       <span style="font-size:13px;">🔍</span>
-      <input type="range" class="cover-zoom-slider" id="cover-zoom-slider" min="50" max="400" value="100" step="1" oninput="onZoomSlider(this.value)">
+      <input type="range" class="cover-zoom-slider" id="cover-zoom-slider" min="1" max="400" value="100" step="1" oninput="onZoomSlider(this.value)">
       <span class="cover-zoom-label" id="cover-zoom-label">100%</span>
     </div>
     <button class="btn" id="cover-adjust-reset" onclick="resetCoverPosition()" style="align-self:center;font-size:12px;padding:5px 14px;">↺ Reset</button>
@@ -754,7 +754,6 @@ function renderAlbumHome(){
     if(coverUrl){
       card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy"></div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
       const cardImg = card.querySelector('img');
-      let _cardReady = false, _imgReady = false;
       const applyAdjust = () => {
         const cardSize = card.getBoundingClientRect().width || card.offsetWidth || 0;
         if (!cardSize || !cardImg.naturalWidth) return; // wait for both
@@ -772,16 +771,21 @@ function renderAlbumHome(){
           cardImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-width:none;max-height:none;';
         }
       };
-      // Fire when card has layout
+      // Re-apply whenever card size changes (grid sm/md/lg switch), debounced
+      let _roTimer = null;
       const ro = new ResizeObserver(() => {
-        if (card.offsetWidth > 0) { ro.disconnect(); _cardReady = true; applyAdjust(); }
+        if (card.offsetWidth > 0) {
+          clearTimeout(_roTimer);
+          _roTimer = setTimeout(applyAdjust, 30);
+        }
       });
       ro.observe(card);
       // Fire when image has loaded
       if (cardImg.complete && cardImg.naturalWidth) {
-        _imgReady = true;
+        // defer one tick so card is in DOM and has width
+        setTimeout(applyAdjust, 0);
       } else {
-        cardImg.onload = () => { _imgReady = true; applyAdjust(); };
+        cardImg.onload = applyAdjust;
       }
     } else {
       card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
@@ -1097,10 +1101,10 @@ function openCoverAdjust(album) {
     _coverAdjImgH = img.naturalHeight;
     const frame = document.getElementById('cover-adjust-frame');
     _coverAdjFrameSize = frame.getBoundingClientRect().width;
-    // If no saved state, fit image to cover the frame (like object-fit:cover)
+    // If no saved state, fit the whole image inside the frame
     if (!saved) {
-      const scaleToFit = Math.max(_coverAdjFrameSize / _coverAdjImgW, _coverAdjFrameSize / _coverAdjImgH) * 100;
-      _coverAdjZoom = Math.max(100, scaleToFit);
+      const scaleToFit = Math.min(_coverAdjFrameSize / _coverAdjImgW, _coverAdjFrameSize / _coverAdjImgH) * 100;
+      _coverAdjZoom = scaleToFit;
       _coverAdjX = 0; _coverAdjY = 0;
     }
     _coverAdjApply();
@@ -1118,8 +1122,8 @@ function closeCoverAdjust() {
 
 function resetCoverPosition() {
   if (!_coverAdjImgW) return;
-  const scaleToFit = Math.max(_coverAdjFrameSize / _coverAdjImgW, _coverAdjFrameSize / _coverAdjImgH) * 100;
-  _coverAdjZoom = Math.max(100, scaleToFit);
+  const scaleToFit = Math.min(_coverAdjFrameSize / _coverAdjImgW, _coverAdjFrameSize / _coverAdjImgH) * 100;
+  _coverAdjZoom = scaleToFit;
   _coverAdjX = 0; _coverAdjY = 0;
   _coverAdjApply();
 }
@@ -1182,7 +1186,7 @@ function _cadMouseUp() {
 function _cadWheel(e) {
   e.preventDefault();
   const delta = e.deltaY > 0 ? -5 : 5;
-  _coverAdjZoom = Math.max(50, Math.min(400, _coverAdjZoom + delta));
+  _coverAdjZoom = Math.max(1, Math.min(400, _coverAdjZoom + delta));
   _coverAdjApply();
 }
 
@@ -1215,7 +1219,7 @@ function _cadTouchMove(e) {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     const dist = Math.hypot(dx, dy);
-    _coverAdjZoom = Math.max(50, Math.min(400, _coverAdjPinchZoom0 * dist / _coverAdjPinchDist0));
+    _coverAdjZoom = Math.max(1, Math.min(400, _coverAdjPinchZoom0 * dist / _coverAdjPinchDist0));
     _coverAdjApply();
   }
 }
