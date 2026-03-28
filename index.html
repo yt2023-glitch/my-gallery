@@ -124,8 +124,9 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .slideshow-controls{display:flex;align-items:center;gap:7px;}
 .ss-speed{background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);padding:3px 7px;border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif;}
 .ss-speed option{background:#111;}
-#album-modal,#rename-modal,#move-modal,#bulk-assign-modal,#recycle-modal,#settings-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99990;align-items:center;justify-content:center;}
-#album-modal.open,#rename-modal.open,#move-modal.open,#bulk-assign-modal.open,#recycle-modal.open,#settings-modal.open{display:flex;}
+#album-modal,#rename-modal,#move-modal,#bulk-assign-modal,#cover-pick-modal,#recycle-modal,#settings-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99990;align-items:center;justify-content:center;}
+#album-modal.open,#rename-modal.open,#move-modal.open,#bulk-assign-modal.open,#cover-pick-modal.open,#recycle-modal.open,#settings-modal.open{display:flex;}
+.modal-create-error{font-size:11px;color:#e74c3c;min-height:14px;margin-top:-6px;}
 .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:22px;width:420px;max-width:95vw;max-height:80vh;overflow-y:auto;display:flex;flex-direction:column;gap:13px;}
 .modal-box h3{font-family:'Playfair Display',serif;font-size:16px;color:var(--accent2);}
 .album-list-item{display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;}
@@ -434,10 +435,11 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <div class="modal-box" style="width:340px;">
     <h3>📁 Assign to Albums</h3>
     <p style="font-size:12px;color:var(--muted);margin-top:-4px;">Select all albums this photo should appear in.</p>
-    <div style="display:flex;gap:7px;margin-bottom:2px;">
+    <div style="display:flex;gap:7px;">
       <input class="field" id="move-new-album-name" placeholder="New album name…" style="flex:1;" onkeydown="if(event.key==='Enter')moveModalCreateAlbum()">
       <button class="btn primary" onclick="moveModalCreateAlbum()" style="flex:0 0 auto;padding:7px 11px;">＋ Create</button>
     </div>
+    <div class="modal-create-error" id="move-create-error"></div>
     <div id="move-album-list" style="display:flex;flex-direction:column;gap:7px;max-height:220px;overflow-y:auto;"></div>
     <div class="row" style="justify-content:flex-end;margin-top:4px;">
       <button class="btn" onclick="closeMoveModal()">Cancel</button>
@@ -450,14 +452,26 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <div class="modal-box" style="width:340px;">
     <h3>📁 Assign to Albums</h3>
     <p style="font-size:12px;color:var(--muted);margin-top:-4px;" id="bulk-assign-subtitle">Assign selected photos to albums.</p>
-    <div id="bulk-assign-create-row" style="display:flex;gap:7px;margin-bottom:2px;">
+    <div style="display:flex;gap:7px;">
       <input class="field" id="bulk-assign-new-name" placeholder="New album name…" style="flex:1;" onkeydown="if(event.key==='Enter')bulkAssignCreateAlbum()">
       <button class="btn primary" onclick="bulkAssignCreateAlbum()" style="flex:0 0 auto;padding:7px 11px;">＋ Create</button>
     </div>
+    <div class="modal-create-error" id="bulk-assign-create-error"></div>
     <div id="bulk-assign-album-list" style="display:flex;flex-direction:column;gap:7px;max-height:220px;overflow-y:auto;"></div>
     <div class="row" style="justify-content:flex-end;margin-top:4px;">
       <button class="btn" onclick="closeBulkAssignModal()">Cancel</button>
       <button class="btn primary" onclick="saveBulkAssign()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="cover-pick-modal">
+  <div class="modal-box" style="width:300px;">
+    <h3>🖼 Set as Cover For…</h3>
+    <p style="font-size:12px;color:var(--muted);margin-top:-4px;">Choose which album to update the cover for.</p>
+    <div id="cover-pick-list" style="display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto;"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:4px;">
+      <button class="btn" onclick="document.getElementById('cover-pick-modal').classList.remove('open')">Cancel</button>
     </div>
   </div>
 </div>
@@ -778,10 +792,14 @@ function renderAlbumList(){
   });
 }
 function createAlbum(){
-  const name=document.getElementById('new-album-name').value.trim();
-  if(!name||data.albums.includes(name)) return;
+  const inp=document.getElementById('new-album-name');
+  const name=inp.value.trim();
+  if(!name) return;
+  if(data.albums.some(a=>a.toLowerCase()===name.toLowerCase())){
+    showToast(`Album "${name}" already exists.`,true); return;
+  }
   data.albums.push(name);
-  document.getElementById('new-album-name').value='';
+  inp.value='';
   saveAlbums(); renderTabs(); renderAlbumList(); renderAlbumHome();
 }
 function deleteAlbum(i){
@@ -957,49 +975,6 @@ async function setCoverPhoto(url, album) {
   showToast(`Cover set for "${album}" ✓`);
 }
 
-function pickCoverAlbum(photoId, url) {
-  const photo = data.photos.find(p => String(p.added) === String(photoId));
-  if (!photo) return;
-  const albums = (photo.albums && photo.albums.length) ? photo.albums : (photo.album ? [photo.album] : []);
-  // If viewing a specific album, use it directly — no picker needed
-  if (currentAlbum && currentAlbum !== 'all' && currentAlbum !== 'starred' && albums.includes(currentAlbum)) {
-    setCoverPhoto(url, currentAlbum);
-    return;
-  }
-  // If photo is only in one album, use that
-  if (albums.length === 1) { setCoverPhoto(url, albums[0]); return; }
-  // If photo is in multiple albums (or in All/Starred view), show a small picker
-  if (!albums.length) { showToast('Photo has no album assigned.', true); return; }
-  showCoverAlbumPicker(url, albums);
-}
-
-function showCoverAlbumPicker(url, albums) {
-  // Remove any existing picker
-  const old = document.getElementById('cover-album-picker');
-  if (old) old.remove();
-
-  const overlay = document.createElement('div');
-  overlay.id = 'cover-album-picker';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99995;display:flex;align-items:center;justify-content:center;';
-  overlay.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:20px;width:300px;max-width:92vw;display:flex;flex-direction:column;gap:11px;">
-      <div style="font-family:'Playfair Display',serif;font-size:15px;color:var(--accent2);">🖼 Set Cover For…</div>
-      <p style="font-size:12px;color:var(--muted);margin-top:-4px;">This photo is in multiple albums. Pick which album's cover to set.</p>
-      <div style="display:flex;flex-direction:column;gap:7px;">
-        ${albums.map(a => `
-          <button onclick="setCoverPhoto('${url}','${a.replace(/'/g,"\\'")}');document.getElementById('cover-album-picker').remove();"
-            style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 13px;border-radius:8px;font-size:13px;cursor:pointer;text-align:left;font-family:'DM Sans',sans-serif;transition:border-color .2s;"
-            onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-            onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'"
-          >${a}</button>`).join('')}
-      </div>
-      <button onclick="document.getElementById('cover-album-picker').remove()" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;align-self:flex-end;font-family:'DM Sans',sans-serif;">Cancel</button>
-    </div>`;
-  // Close on backdrop click
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.body.appendChild(overlay);
-}
-
 // RENAME
 function openRenameModal(){
   const p=lbPhotos[lbIndex]; if(!p) return;
@@ -1025,40 +1000,53 @@ async function confirmRename(){
 }
 
 // ASSIGN ALBUMS (lightbox single photo)
+function sortedAlbums(){ return data.albums.slice().sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'})); }
+
 function openMoveModal(){
   const p=lbPhotos[lbIndex]; if(!p) return;
-  renderMoveAlbumList(p);
   document.getElementById('move-new-album-name').value='';
+  document.getElementById('move-create-error').textContent='';
+  renderMoveAlbumList(p);
   document.getElementById('move-modal').classList.add('open');
 }
 function renderMoveAlbumList(p){
   const list=document.getElementById('move-album-list'); list.innerHTML='';
-  if(data.albums.length){
-    const current=new Set(p.albums||[]);
-    data.albums.forEach(a=>{
-      const lbl=document.createElement('label'); lbl.className='album-check-item';
-      const cb=document.createElement('input'); cb.type='checkbox'; cb.value=a; cb.name='move-album';
-      if(current.has(a)) cb.checked=true;
-      lbl.appendChild(cb); lbl.appendChild(document.createTextNode(a));
-      list.appendChild(lbl);
-    });
-  } else {
+  const albums=sortedAlbums();
+  if(!albums.length){
     const msg=document.createElement('p');
     msg.style.cssText='font-size:12px;color:var(--muted);text-align:center;padding:8px;';
     msg.textContent='No albums yet. Create one above.';
-    list.appendChild(msg);
+    list.appendChild(msg); return;
   }
+  const current=new Set(p.albums||[]);
+  albums.forEach(a=>{
+    const lbl=document.createElement('label'); lbl.className='album-check-item';
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.value=a; cb.name='move-album';
+    if(current.has(a)) cb.checked=true;
+    lbl.appendChild(cb); lbl.appendChild(document.createTextNode(a));
+    list.appendChild(lbl);
+  });
 }
 function moveModalCreateAlbum(){
   const inp=document.getElementById('move-new-album-name');
+  const err=document.getElementById('move-create-error');
   const name=inp.value.trim();
-  if(!name) return;
-  if(!data.albums.includes(name)){ data.albums.push(name); saveAlbums(); renderTabs(); renderAlbumHome(); }
-  inp.value='';
+  if(!name){ err.textContent='Please enter an album name.'; return; }
+  if(data.albums.some(a=>a.toLowerCase()===name.toLowerCase())){
+    err.textContent=`"${name}" already exists.`; return;
+  }
+  err.textContent='';
+  data.albums.push(name); inp.value='';
+  saveAlbums(); renderTabs(); renderAlbumHome();
   const p=lbPhotos[lbIndex]; if(p) renderMoveAlbumList(p);
+  // Auto-check the newly created album
+  setTimeout(()=>{
+    const newCb=document.querySelector(`#move-album-list input[value="${CSS.escape(name)}"]`);
+    if(newCb){ newCb.checked=true; }
+  },30);
   showToast(`Album "${name}" created ✓`);
 }
-function closeMoveModal(){document.getElementById('move-modal').classList.remove('open');}
+function closeMoveModal(){ document.getElementById('move-modal').classList.remove('open'); }
 async function savePhotoAlbums(){
   const p=lbPhotos[lbIndex]; if(!p) return;
   const checked=[...document.querySelectorAll('#move-album-list input[name=move-album]:checked')].map(cb=>cb.value);
@@ -1076,32 +1064,29 @@ function openBulkAssignModal(){
   if(!selectedIds.size){ showToast('No photos selected.',true); return; }
   document.getElementById('bulk-assign-subtitle').textContent=`Assign ${selectedIds.size} selected photo${selectedIds.size!==1?'s':''} to albums.`;
   document.getElementById('bulk-assign-new-name').value='';
+  document.getElementById('bulk-assign-create-error').textContent='';
   renderBulkAssignList();
   document.getElementById('bulk-assign-modal').classList.add('open');
 }
 function renderBulkAssignList(){
   const list=document.getElementById('bulk-assign-album-list'); list.innerHTML='';
-  // Determine which albums ALL selected photos share (for pre-checking)
+  const albums=sortedAlbums();
   const selectedPhotos=data.photos.filter(p=>selectedIds.has(String(p.added)));
-  const allAlbumsUnion=new Set(selectedPhotos.flatMap(p=>p.albums||[]));
-  const allAlbumsIntersect=data.albums.filter(a=>selectedPhotos.every(p=>(p.albums||[]).includes(a)));
-  if(!data.albums.length){
+  const intersect=albums.filter(a=>selectedPhotos.every(p=>(p.albums||[]).includes(a)));
+  const union=new Set(selectedPhotos.flatMap(p=>p.albums||[]));
+  if(!albums.length){
     const msg=document.createElement('p');
     msg.style.cssText='font-size:12px;color:var(--muted);text-align:center;padding:8px;';
     msg.textContent='No albums yet. Create one above.';
-    list.appendChild(msg);
-    return;
+    list.appendChild(msg); return;
   }
-  data.albums.forEach(a=>{
+  albums.forEach(a=>{
     const lbl=document.createElement('label'); lbl.className='album-check-item';
     const cb=document.createElement('input'); cb.type='checkbox'; cb.value=a; cb.name='bulk-assign-album';
-    // pre-check if ALL selected photos are in this album
-    if(allAlbumsIntersect.includes(a)) cb.checked=true;
-    // show indeterminate if SOME (but not all) selected photos are in this album
-    else if(allAlbumsUnion.has(a)){ cb.indeterminate=true; }
+    if(intersect.includes(a)) cb.checked=true;
+    else if(union.has(a)) cb.indeterminate=true;
     lbl.appendChild(cb); lbl.appendChild(document.createTextNode(a));
-    // sub-label for partial state
-    if(allAlbumsUnion.has(a)&&!allAlbumsIntersect.includes(a)){
+    if(union.has(a)&&!intersect.includes(a)){
       const hint=document.createElement('span');
       hint.style.cssText='font-size:10px;color:var(--muted);margin-left:auto;';
       hint.textContent='partial';
@@ -1112,34 +1097,68 @@ function renderBulkAssignList(){
 }
 function bulkAssignCreateAlbum(){
   const inp=document.getElementById('bulk-assign-new-name');
+  const err=document.getElementById('bulk-assign-create-error');
   const name=inp.value.trim();
-  if(!name) return;
-  if(!data.albums.includes(name)){ data.albums.push(name); saveAlbums(); renderTabs(); renderAlbumHome(); }
-  inp.value='';
+  if(!name){ err.textContent='Please enter an album name.'; return; }
+  if(data.albums.some(a=>a.toLowerCase()===name.toLowerCase())){
+    err.textContent=`"${name}" already exists.`; return;
+  }
+  err.textContent='';
+  data.albums.push(name); inp.value='';
+  saveAlbums(); renderTabs(); renderAlbumHome();
   renderBulkAssignList();
+  // Auto-check the newly created album
+  setTimeout(()=>{
+    const newCb=document.querySelector(`#bulk-assign-album-list input[value="${CSS.escape(name)}"]`);
+    if(newCb){ newCb.checked=true; newCb.indeterminate=false; }
+  },30);
   showToast(`Album "${name}" created ✓`);
 }
 function closeBulkAssignModal(){ document.getElementById('bulk-assign-modal').classList.remove('open'); }
 async function saveBulkAssign(){
-  const checked=[...document.querySelectorAll('#bulk-assign-album-list input[name=bulk-assign-album]:checked')].map(cb=>cb.value);
-  const unchecked=[...document.querySelectorAll('#bulk-assign-album-list input[name=bulk-assign-album]:not(:checked):not([indeterminate])')].map(cb=>cb.value);
-  // For indeterminate ones, we leave them as-is per photo
-  const indetermAlbums=new Set([...document.querySelectorAll('#bulk-assign-album-list input[name=bulk-assign-album]')].filter(cb=>cb.indeterminate).map(cb=>cb.value));
+  const allCbs=[...document.querySelectorAll('#bulk-assign-album-list input[name=bulk-assign-album]')];
+  const checked=allCbs.filter(cb=>cb.checked&&!cb.indeterminate).map(cb=>cb.value);
+  const unchecked=allCbs.filter(cb=>!cb.checked&&!cb.indeterminate).map(cb=>cb.value);
   const ids=[...selectedIds];
   for(const id of ids){
     const photo=data.photos.find(p=>String(p.added)===String(id));
     if(!photo) continue;
-    let albums=new Set(photo.albums||[]);
-    // Add checked
+    const albums=new Set(photo.albums||[]);
     checked.forEach(a=>albums.add(a));
-    // Remove explicitly unchecked (skip indeterminate — leave photo's original state for those)
-    unchecked.forEach(a=>{ if(!indetermAlbums.has(a)) albums.delete(a); });
+    unchecked.forEach(a=>albums.delete(a));
     photo.albums=[...albums];
     await apiPost({action:'move',added:photo.added,albums:photo.albums,album:photo.albums[0]||''});
   }
   closeBulkAssignModal();
   renderGrid();
   showToast(`Albums updated for ${ids.length} photo${ids.length!==1?'s':''} ✓`);
+}
+
+// COVER PICKER
+function pickCoverAlbum(url, photoAdded){
+  const photo=data.photos.find(p=>String(p.added)===String(photoAdded));
+  if(!photo) return;
+  const photoAlbums=(photo.albums&&photo.albums.length)?photo.albums:(photo.album?[photo.album]:[]);
+  if(currentAlbum!=='all'&&currentAlbum!=='starred'&&photoAlbums.includes(currentAlbum)){
+    setCoverPhoto(url,currentAlbum); return;
+  }
+  if(photoAlbums.length===1){ setCoverPhoto(url,photoAlbums[0]); return; }
+  if(!photoAlbums.length){ showToast('This photo is not in any album.',true); return; }
+  const list=document.getElementById('cover-pick-list'); list.innerHTML='';
+  photoAlbums.slice().sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'})).forEach(a=>{
+    const cover=albumCovers[a];
+    const btn=document.createElement('button');
+    btn.className='album-list-item btn';
+    btn.style.cssText='width:100%;justify-content:flex-start;gap:10px;cursor:pointer;';
+    btn.innerHTML=cover
+      ?`<img class="album-cover" src="${cover}" alt="">`
+      :`<span style="width:34px;height:34px;background:var(--surface2);border-radius:5px;display:inline-block;flex-shrink:0;"></span>`;
+    btn.innerHTML+=`<span style="flex:1;text-align:left;">${a}</span>`;
+    if(a===currentAlbum){ const b=document.createElement('span'); b.textContent='current'; b.style.cssText='font-size:10px;color:var(--accent);opacity:.8;'; btn.appendChild(b); }
+    btn.onclick=()=>{ document.getElementById('cover-pick-modal').classList.remove('open'); setCoverPhoto(url,a); };
+    list.appendChild(btn);
+  });
+  document.getElementById('cover-pick-modal').classList.add('open');
 }
 
 // COPY/DOWNLOAD
@@ -1278,7 +1297,7 @@ function renderGrid(){
       <input type="checkbox" class="thumb-checkbox" ${isSelected?'checked':''} onclick="event.stopPropagation();toggleSelect('${p.added}')">
       <div class="thumb-actions">
         <button class="ta-btn" title="${isStarred?'Unstar':'Star'}" onclick="event.stopPropagation();quickStar('${p.added}')">${isStarred?'★':'☆'}</button>
-        <button class="ta-btn" title="Set album cover" onclick="event.stopPropagation();pickCoverAlbum('${p.added}','${p.url}')">🖼</button>
+        <button class="ta-btn" title="Set album cover" onclick="event.stopPropagation();pickCoverAlbum('${p.url}',${p.added})">🖼</button>
         <button class="ta-btn" title="Delete" onclick="event.stopPropagation();deletePhoto(${p.added})">🗑</button>
       </div>`;
     div.addEventListener('click',()=>{ if(selectMode){toggleSelect(String(p.added));return;} openLb(i,visible); });
