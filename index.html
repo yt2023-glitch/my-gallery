@@ -1595,15 +1595,13 @@ function closeLb(){
     document.body.style.overflow='';
   }
 }
+let _lbLoadToken = 0; // increments each navigation to cancel stale loads
 function showLbPhoto(){
   const p=lbPhotos[lbIndex];
   const img=document.getElementById('lb-img');
-  img.classList.add('fade');
-  const albumOffset = (currentAlbum && currentAlbum!=='starred')
-    ? (albumRotations[currentAlbum]||0) : 0;
-  rot=(rotationMap[p.added]||0) + albumOffset; scale=1; panX=0; panY=0;
-  applyTransform(false);
-  setTimeout(()=>{img.src=p.url;img.classList.remove('fade');},150);
+  const token = ++_lbLoadToken; // unique token for this navigation
+
+  // Update UI text immediately
   document.getElementById('lb-title').textContent=p.name;
   document.getElementById('lb-counter').textContent=`${lbIndex+1} / ${lbPhotos.length}  ·  ${(p.albums&&p.albums.length?p.albums.join(', '):p.album||'')}`;
   document.getElementById('lb-prev').style.opacity=lbIndex>0?'1':'0.3';
@@ -1611,6 +1609,40 @@ function showLbPhoto(){
   const isStar=starredIds.has(String(p.added));
   document.getElementById('star-btn').textContent=isStar?'★':'☆';
   document.getElementById('star-btn').classList.toggle('active',isStar);
+
+  // Reset transform for new image
+  const albumOffset = (currentAlbum && currentAlbum!=='starred')
+    ? (albumRotations[currentAlbum]||0) : 0;
+  rot=(rotationMap[p.added]||0) + albumOffset; scale=1; panX=0; panY=0;
+
+  // Fade out current image
+  img.classList.add('fade');
+
+  // Detach old handlers and clear src so the previous image can never fire a stale onload
+  img.onload = null;
+  img.onerror = null;
+  img.src = '';
+
+  const onLoaded = () => {
+    // Ignore if user navigated away before this image finished loading
+    if (token !== _lbLoadToken) return;
+    applyTransform(false); // also calls applyFsImageSize() when in fullscreen
+    img.classList.remove('fade');
+  };
+
+  const onError = () => {
+    if (token !== _lbLoadToken) return;
+    img.classList.remove('fade');
+  };
+
+  img.onload = onLoaded;
+  img.onerror = onError;
+
+  // Short delay lets the fade-out play before the browser starts decoding the new image
+  setTimeout(() => {
+    if (token !== _lbLoadToken) return;
+    img.src = p.url;
+  }, 80);
 }
 function navigate(dir){
   const next=lbIndex+dir;
@@ -1672,8 +1704,11 @@ function applyFsImageSize(){
   const img=document.getElementById('lb-img');
   const nr=((rot%360)+360)%360;
   const sw=nr===90||nr===270;
-  img.style.width=sw?'100vh':'100vw'; img.style.height=sw?'100vw':'100vh';
-  img.style.maxWidth=sw?'100vh':'100vw'; img.style.maxHeight=sw?'100vw':'100vh';
+  // Don't force width/height — let object-fit:contain fill the viewport naturally.
+  // For rotated images, swap the max constraints so the image fits after rotation.
+  img.style.width=''; img.style.height='';
+  img.style.maxWidth=sw?'100vh':'100vw';
+  img.style.maxHeight=sw?'100vw':'100vh';
   img.style.borderRadius='0';
 }
 function setFsStyles(on){
@@ -1688,6 +1723,7 @@ function setFsStyles(on){
   } else {
     img.style.maxWidth='92vw'; img.style.maxHeight='88vh';
     img.style.width=''; img.style.height=''; img.style.borderRadius='4px';
+    img.style.objectFit='contain';
     wrap.style.width='100vw'; wrap.style.height='100vh';
     btn.textContent='⛶'; btn.title='Fullscreen (F)';
     lb.classList.remove('is-fullscreen','ui-visible');
