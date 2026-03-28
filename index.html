@@ -496,7 +496,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     </div>
     <div class="cover-zoom-row">
       <span style="font-size:13px;">🔍</span>
-      <input type="range" class="cover-zoom-slider" id="cover-zoom-slider" min="50" max="400" value="100" step="1" oninput="onZoomSlider(this.value)">
+      <input type="range" class="cover-zoom-slider" id="cover-zoom-slider" min="1" max="400" value="100" step="1" oninput="onZoomSlider(this.value)">
       <span class="cover-zoom-label" id="cover-zoom-label">100%</span>
     </div>
     <button class="btn" id="cover-adjust-reset" onclick="resetCoverPosition()" style="align-self:center;font-size:12px;padding:5px 14px;">↺ Reset</button>
@@ -1081,10 +1081,9 @@ function openCoverAdjust(album) {
     _coverAdjImgH = img.naturalHeight;
     const frame = document.getElementById('cover-adjust-frame');
     _coverAdjFrameSize = frame.getBoundingClientRect().width;
-    // If no saved state, fit image to cover the frame (like object-fit:cover)
+    // If no saved state, start at scale 1 (100%) so user can zoom/drag freely
     if (!saved) {
-      const scaleToFit = Math.max(_coverAdjFrameSize / _coverAdjImgW, _coverAdjFrameSize / _coverAdjImgH) * 100;
-      _coverAdjZoom = Math.max(100, scaleToFit);
+      _coverAdjZoom = 100;
       _coverAdjX = 0; _coverAdjY = 0;
     }
     _coverAdjApply();
@@ -1102,8 +1101,7 @@ function closeCoverAdjust() {
 
 function resetCoverPosition() {
   if (!_coverAdjImgW) return;
-  const scaleToFit = Math.max(_coverAdjFrameSize / _coverAdjImgW, _coverAdjFrameSize / _coverAdjImgH) * 100;
-  _coverAdjZoom = Math.max(100, scaleToFit);
+  _coverAdjZoom = 100;
   _coverAdjX = 0; _coverAdjY = 0;
   _coverAdjApply();
 }
@@ -1166,7 +1164,7 @@ function _cadMouseUp() {
 function _cadWheel(e) {
   e.preventDefault();
   const delta = e.deltaY > 0 ? -5 : 5;
-  _coverAdjZoom = Math.max(50, Math.min(400, _coverAdjZoom + delta));
+  _coverAdjZoom = Math.max(1, Math.min(400, _coverAdjZoom + delta));
   _coverAdjApply();
 }
 
@@ -1199,7 +1197,7 @@ function _cadTouchMove(e) {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     const dist = Math.hypot(dx, dy);
-    _coverAdjZoom = Math.max(50, Math.min(400, _coverAdjPinchZoom0 * dist / _coverAdjPinchDist0));
+    _coverAdjZoom = Math.max(1, Math.min(400, _coverAdjPinchZoom0 * dist / _coverAdjPinchDist0));
     _coverAdjApply();
   }
 }
