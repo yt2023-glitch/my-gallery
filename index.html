@@ -957,6 +957,49 @@ async function setCoverPhoto(url, album) {
   showToast(`Cover set for "${album}" ✓`);
 }
 
+function pickCoverAlbum(photoId, url) {
+  const photo = data.photos.find(p => String(p.added) === String(photoId));
+  if (!photo) return;
+  const albums = (photo.albums && photo.albums.length) ? photo.albums : (photo.album ? [photo.album] : []);
+  // If viewing a specific album, use it directly — no picker needed
+  if (currentAlbum && currentAlbum !== 'all' && currentAlbum !== 'starred' && albums.includes(currentAlbum)) {
+    setCoverPhoto(url, currentAlbum);
+    return;
+  }
+  // If photo is only in one album, use that
+  if (albums.length === 1) { setCoverPhoto(url, albums[0]); return; }
+  // If photo is in multiple albums (or in All/Starred view), show a small picker
+  if (!albums.length) { showToast('Photo has no album assigned.', true); return; }
+  showCoverAlbumPicker(url, albums);
+}
+
+function showCoverAlbumPicker(url, albums) {
+  // Remove any existing picker
+  const old = document.getElementById('cover-album-picker');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'cover-album-picker';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99995;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:20px;width:300px;max-width:92vw;display:flex;flex-direction:column;gap:11px;">
+      <div style="font-family:'Playfair Display',serif;font-size:15px;color:var(--accent2);">🖼 Set Cover For…</div>
+      <p style="font-size:12px;color:var(--muted);margin-top:-4px;">This photo is in multiple albums. Pick which album's cover to set.</p>
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        ${albums.map(a => `
+          <button onclick="setCoverPhoto('${url}','${a.replace(/'/g,"\\'")}');document.getElementById('cover-album-picker').remove();"
+            style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 13px;border-radius:8px;font-size:13px;cursor:pointer;text-align:left;font-family:'DM Sans',sans-serif;transition:border-color .2s;"
+            onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+            onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'"
+          >${a}</button>`).join('')}
+      </div>
+      <button onclick="document.getElementById('cover-album-picker').remove()" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;align-self:flex-end;font-family:'DM Sans',sans-serif;">Cancel</button>
+    </div>`;
+  // Close on backdrop click
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
 // RENAME
 function openRenameModal(){
   const p=lbPhotos[lbIndex]; if(!p) return;
@@ -1235,7 +1278,7 @@ function renderGrid(){
       <input type="checkbox" class="thumb-checkbox" ${isSelected?'checked':''} onclick="event.stopPropagation();toggleSelect('${p.added}')">
       <div class="thumb-actions">
         <button class="ta-btn" title="${isStarred?'Unstar':'Star'}" onclick="event.stopPropagation();quickStar('${p.added}')">${isStarred?'★':'☆'}</button>
-        <button class="ta-btn" title="Set album cover" onclick="event.stopPropagation();setCoverPhoto('${p.url}','${(p.albums&&p.albums[0])||p.album||''}')">🖼</button>
+        <button class="ta-btn" title="Set album cover" onclick="event.stopPropagation();pickCoverAlbum('${p.added}','${p.url}')">🖼</button>
         <button class="ta-btn" title="Delete" onclick="event.stopPropagation();deletePhoto(${p.added})">🗑</button>
       </div>`;
     div.addEventListener('click',()=>{ if(selectMode){toggleSelect(String(p.added));return;} openLb(i,visible); });
