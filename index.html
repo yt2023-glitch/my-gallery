@@ -159,8 +159,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .album-home-grid.ags-lg{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}
 .album-card{position:relative;border-radius:10px;overflow:hidden;cursor:pointer;background:var(--surface2);border:1px solid var(--border);aspect-ratio:1;transition:transform .2s,border-color .2s;}
 .album-card:hover{transform:translateY(-3px);border-color:var(--accent);}
-.album-card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s ease;}
-.album-card:hover img{transform:scale(1.05);}
+.album-card img{display:block;}
+.album-card .cover-wrap{position:absolute;inset:0;overflow:hidden;border-radius:8px;}
 .album-card-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--border);}
 .album-card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.82) 0%,transparent 55%);display:flex;flex-direction:column;justify-content:flex-end;padding:10px 11px;}
 .album-card-actions{position:absolute;top:7px;right:7px;display:flex;flex-direction:column;gap:4px;opacity:0;transition:opacity .2s;}
@@ -496,7 +496,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     </div>
     <div class="cover-zoom-row">
       <span style="font-size:13px;">🔍</span>
-      <input type="range" class="cover-zoom-slider" id="cover-zoom-slider" min="1" max="400" value="100" step="1" oninput="onZoomSlider(this.value)">
+      <input type="range" class="cover-zoom-slider" id="cover-zoom-slider" min="50" max="400" value="100" step="1" oninput="onZoomSlider(this.value)">
       <span class="cover-zoom-label" id="cover-zoom-label">100%</span>
     </div>
     <button class="btn" id="cover-adjust-reset" onclick="resetCoverPosition()" style="align-self:center;font-size:12px;padding:5px 14px;">↺ Reset</button>
@@ -749,23 +749,39 @@ function renderAlbumHome(){
     const card=document.createElement('div'); card.className='album-card';
     const isSpecial=(key==='all'||key==='starred');
     const savedAdj = albumCoverPositions[key];
-    let imgStyle = '';
-    if (savedAdj && coverUrl) {
-      const ox = savedAdj.x !== undefined ? savedAdj.x : 0;
-      const oy = savedAdj.y !== undefined ? savedAdj.y : 0;
-      const zoom = savedAdj.zoom !== undefined ? savedAdj.zoom : 100;
-      // Use same transform approach as the adjuster for pixel-perfect match
-      imgStyle = `style="position:absolute;top:50%;left:50%;transform:translate(calc(-50% + ${ox}px),calc(-50% + ${oy}px)) scale(${zoom/100});transform-origin:center center;max-width:none;max-height:none;"`;
-    }
     const safeKey=key.replace(/'/g,"\\'");
     const actions=!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions"><button class="album-card-btn" title="Adjust cover" onclick="event.stopPropagation();openCoverAdjust('${safeKey}')">✥</button><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${safeKey}')">⬇</button></div>`:'';
     if(coverUrl){
-      const defaultImgStyle = 'style="width:100%;height:100%;object-fit:cover;"';
-      card.innerHTML=`<div style="position:absolute;inset:0;overflow:hidden;border-radius:8px;"><img src="${coverUrl}" alt="${label}" loading="lazy" ${imgStyle||defaultImgStyle}></div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
-      // If adjusted, set natural dimensions after load for correct transform scaling
-      if(imgStyle){
-        const cardImg=card.querySelector('img');
-        cardImg.onload=function(){ cardImg.style.width=cardImg.naturalWidth+'px'; cardImg.style.height=cardImg.naturalHeight+'px'; };
+      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy"></div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
+      const cardImg = card.querySelector('img');
+      let _cardReady = false, _imgReady = false;
+      const applyAdjust = () => {
+        const cardSize = card.getBoundingClientRect().width || card.offsetWidth || 0;
+        if (!cardSize || !cardImg.naturalWidth) return; // wait for both
+        if (savedAdj && savedAdj.zoom !== undefined) {
+          const adjFs = savedAdj.fs || 300;
+          const scale = savedAdj.zoom / 100;
+          const xScaled = (savedAdj.x / adjFs) * cardSize;
+          const yScaled = (savedAdj.y / adjFs) * cardSize;
+          const renderScale = scale * (cardSize / adjFs);
+          cardImg.style.cssText = 'position:absolute;top:50%;left:50%;max-width:none;max-height:none;transform-origin:center center;';
+          cardImg.style.width = cardImg.naturalWidth + 'px';
+          cardImg.style.height = cardImg.naturalHeight + 'px';
+          cardImg.style.transform = `translate(calc(-50% + ${xScaled}px), calc(-50% + ${yScaled}px)) scale(${renderScale})`;
+        } else {
+          cardImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-width:none;max-height:none;';
+        }
+      };
+      // Fire when card has layout
+      const ro = new ResizeObserver(() => {
+        if (card.offsetWidth > 0) { ro.disconnect(); _cardReady = true; applyAdjust(); }
+      });
+      ro.observe(card);
+      // Fire when image has loaded
+      if (cardImg.complete && cardImg.naturalWidth) {
+        _imgReady = true;
+      } else {
+        cardImg.onload = () => { _imgReady = true; applyAdjust(); };
       }
     } else {
       card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
@@ -1081,9 +1097,10 @@ function openCoverAdjust(album) {
     _coverAdjImgH = img.naturalHeight;
     const frame = document.getElementById('cover-adjust-frame');
     _coverAdjFrameSize = frame.getBoundingClientRect().width;
-    // If no saved state, start at scale 1 (100%) so user can zoom/drag freely
+    // If no saved state, fit image to cover the frame (like object-fit:cover)
     if (!saved) {
-      _coverAdjZoom = 100;
+      const scaleToFit = Math.max(_coverAdjFrameSize / _coverAdjImgW, _coverAdjFrameSize / _coverAdjImgH) * 100;
+      _coverAdjZoom = Math.max(100, scaleToFit);
       _coverAdjX = 0; _coverAdjY = 0;
     }
     _coverAdjApply();
@@ -1101,7 +1118,8 @@ function closeCoverAdjust() {
 
 function resetCoverPosition() {
   if (!_coverAdjImgW) return;
-  _coverAdjZoom = 100;
+  const scaleToFit = Math.max(_coverAdjFrameSize / _coverAdjImgW, _coverAdjFrameSize / _coverAdjImgH) * 100;
+  _coverAdjZoom = Math.max(100, scaleToFit);
   _coverAdjX = 0; _coverAdjY = 0;
   _coverAdjApply();
 }
@@ -1112,7 +1130,7 @@ function onZoomSlider(val) {
 }
 
 async function saveCoverPosition() {
-  albumCoverPositions[_coverAdjAlbum] = { x: _coverAdjX, y: _coverAdjY, zoom: _coverAdjZoom };
+  albumCoverPositions[_coverAdjAlbum] = { x: _coverAdjX, y: _coverAdjY, zoom: _coverAdjZoom, fs: _coverAdjFrameSize || 300 };
   saveCoverPositions();
   closeCoverAdjust();
   renderAlbumHome();
@@ -1164,7 +1182,7 @@ function _cadMouseUp() {
 function _cadWheel(e) {
   e.preventDefault();
   const delta = e.deltaY > 0 ? -5 : 5;
-  _coverAdjZoom = Math.max(1, Math.min(400, _coverAdjZoom + delta));
+  _coverAdjZoom = Math.max(50, Math.min(400, _coverAdjZoom + delta));
   _coverAdjApply();
 }
 
@@ -1197,7 +1215,7 @@ function _cadTouchMove(e) {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     const dist = Math.hypot(dx, dy);
-    _coverAdjZoom = Math.max(1, Math.min(400, _coverAdjPinchZoom0 * dist / _coverAdjPinchDist0));
+    _coverAdjZoom = Math.max(50, Math.min(400, _coverAdjPinchZoom0 * dist / _coverAdjPinchDist0));
     _coverAdjApply();
   }
 }
