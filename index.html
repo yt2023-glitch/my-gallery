@@ -752,10 +752,8 @@ function renderAlbumHome(){
     const safeKey=key.replace(/'/g,"\\'");
     const actions=!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions"><button class="album-card-btn" title="Adjust cover" onclick="event.stopPropagation();openCoverAdjust('${safeKey}')">✥</button><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${safeKey}')">⬇</button></div>`:'';
     if(coverUrl){
-      // Start invisible to prevent flash of wrong zoom/position before applyAdjust fires
-      const needsAdjust = !!(savedAdj && savedAdj.zoom !== undefined);
-      const imgStyle = needsAdjust ? 'style="opacity:0;"' : '';
-      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy" ${imgStyle}></div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
+      // Always start invisible — prevents flash of natural size before styles are applied (affects all formats incl. GIF)
+      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy" style="opacity:0;"></div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
       const cardImg = card.querySelector('img');
       const applyAdjust = () => {
         const cardSize = card.getBoundingClientRect().width || card.offsetWidth || 0;
@@ -766,15 +764,16 @@ function renderAlbumHome(){
           const xScaled = (savedAdj.x / adjFs) * cardSize;
           const yScaled = (savedAdj.y / adjFs) * cardSize;
           const renderScale = scale * (cardSize / adjFs);
-          cardImg.style.cssText = 'position:absolute;top:50%;left:50%;max-width:none;max-height:none;transform-origin:center center;transition:opacity 0.25s ease;';
+          cardImg.style.cssText = 'position:absolute;top:50%;left:50%;max-width:none;max-height:none;transform-origin:center center;opacity:0;transition:opacity 0.25s ease;';
           cardImg.style.width = cardImg.naturalWidth + 'px';
           cardImg.style.height = cardImg.naturalHeight + 'px';
           cardImg.style.transform = `translate(calc(-50% + ${xScaled}px), calc(-50% + ${yScaled}px)) scale(${renderScale})`;
-          // Fade in only after transform is applied
-          requestAnimationFrame(() => { cardImg.style.opacity = '1'; });
         } else {
-          cardImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-width:none;max-height:none;';
+          // Plain cover — apply object-fit styles while still invisible
+          cardImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-width:none;max-height:none;opacity:0;transition:opacity 0.25s ease;';
         }
+        // Fade in one frame after styles are painted — works for all formats incl. GIF
+        requestAnimationFrame(() => { cardImg.style.opacity = '1'; });
       };
       // Re-apply whenever card size changes (grid sm/md/lg switch), debounced
       let _roTimer = null;
@@ -2064,7 +2063,19 @@ function lockGallery(){
   document.getElementById('pw-error').textContent='';
   setTimeout(()=>inp.focus(),100);
 }
-document.addEventListener('visibilitychange',()=>{if(document.hidden)lockGallery();});
+// Lock only after 5 minutes away — switching tabs or dimming screen won't interrupt the session
+const LOCK_GRACE_MS = 5 * 60 * 1000; // 5 minutes
+let _lockTimer = null;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // Start the countdown when tab is hidden
+    _lockTimer = setTimeout(() => { if(isUnlocked) lockGallery(); }, LOCK_GRACE_MS);
+  } else {
+    // Came back before 5 minutes — cancel the lock
+    clearTimeout(_lockTimer);
+    _lockTimer = null;
+  }
+});
 
 // NOTE: For rename/move to sync to Google Sheet, add these cases to your Apps Script doPost:
 // action='rename': find row by added, update column B (name)
