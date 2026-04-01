@@ -211,6 +211,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .cover-zoom-slider{flex:1;accent-color:var(--accent);cursor:pointer;}
 .settings-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
 .settings-divider{border:none;border-top:1px solid var(--border);margin:4px 0;}
+/* ── MOBILE (≤600px) ───────────────────────────────────────────────────── */
 @media(max-width:600px){
   header,.toolbar,.sort-filter-bar,.gallery-wrap,.add-panel{padding-left:14px;padding-right:14px;}
   .add-panel{margin:9px 14px;}
@@ -221,6 +222,50 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   .grid.size-md{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
   #bulk-select-bar{padding:9px 14px;flex-wrap:wrap;}
 }
+/* Mobile: always show overlay and actions (no hover on touch) */
+.is-mobile .thumb-overlay{opacity:1;background:linear-gradient(to top,rgba(0,0,0,.65) 0%,transparent 50%);}
+.is-mobile .thumb-actions{display:flex;flex-direction:column;}
+.is-mobile .lb-arrow{width:52px;height:72px;font-size:26px;}
+.is-mobile .lb-btn{width:38px;height:38px;font-size:16px;}
+.is-mobile .album-card-actions{opacity:1;}
+
+/* ── FIRE TV ────────────────────────────────────────────────────────────── */
+.is-tv body,.is-tv{font-size:16px;}
+.is-tv .logo{font-size:52px;}
+.is-tv .tagline{font-size:18px;}
+.is-tv .btn{font-size:16px;padding:11px 20px;}
+.is-tv .tab{font-size:15px;padding:9px 20px;}
+.is-tv .storage-badge{font-size:14px;padding:7px 16px;}
+.is-tv header{padding:24px 60px;}
+.is-tv .album-home-grid.ags-sm{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));}
+.is-tv .album-home-grid.ags-md{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}
+.is-tv .album-home-grid.ags-lg{grid-template-columns:repeat(auto-fill,minmax(380px,1fr));}
+.is-tv #album-home{padding:24px 60px;}
+.is-tv .grid.size-sm{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));}
+.is-tv .grid.size-md{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}
+.is-tv .grid.size-lg{grid-template-columns:repeat(auto-fill,minmax(420px,1fr));}
+.is-tv .gallery-wrap{padding:24px 60px;}
+.is-tv .lb-btn{width:50px;height:50px;font-size:22px;}
+.is-tv .lb-arrow{width:68px;height:88px;font-size:34px;}
+.is-tv .lb-title{font-size:20px;}
+.is-tv .lb-counter{font-size:15px;}
+/* TV: always show overlays and actions — no hover */
+.is-tv .thumb-overlay{opacity:1;background:linear-gradient(to top,rgba(0,0,0,.65) 0%,transparent 50%);}
+.is-tv .thumb-actions{display:flex;}
+.is-tv .album-card-actions{opacity:1;}
+/* TV: hide upload/admin buttons — not useful on TV */
+.is-tv #add-btn,.is-tv #albums-btn,.is-tv #recycle-btn,.is-tv #settings-btn{display:none;}
+
+/* ── FOCUS RINGS — visible on keyboard/D-pad, hidden on mouse/touch ─────── */
+:focus{outline:none;}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:4px;}
+.thumb:focus-visible{outline:3px solid var(--accent);outline-offset:2px;box-shadow:0 0 0 5px rgba(200,169,110,.25);}
+.album-card:focus-visible{outline:3px solid var(--accent);outline-offset:3px;box-shadow:0 0 0 6px rgba(200,169,110,.25);}
+.lb-btn:focus-visible,.lb-arrow:focus-visible,.btn:focus-visible,.tab:focus-visible,.back-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px;}
+/* TV focus — bigger glow for 10-foot visibility */
+.is-tv .album-card:focus-visible{transform:scale(1.06);outline:4px solid var(--accent);box-shadow:0 0 0 10px rgba(200,169,110,.3),0 20px 50px rgba(0,0,0,.8);}
+.is-tv .thumb:focus-visible{transform:scale(1.08) translateY(-4px);outline:4px solid var(--accent);box-shadow:0 0 0 10px rgba(200,169,110,.3),0 20px 50px rgba(0,0,0,.8);}
+.is-tv .lb-btn:focus-visible,.is-tv .lb-arrow:focus-visible{outline:4px solid var(--accent);box-shadow:0 0 0 6px rgba(200,169,110,.25);}
 </style>
 </head>
 <body>
@@ -248,10 +293,10 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   </div>
   <div class="header-right">
     <span class="storage-badge" id="storage-badge">📷 0 photos</span>
-    <button class="btn" onclick="openRecycleBin()">🗑 Bin</button>
-    <button class="btn" onclick="openAlbumModal()">⊞ Albums</button>
-    <button class="btn" onclick="openSettingsModal()">⚙ Settings</button>
-    <button class="btn primary" onclick="toggleAddPanel()">＋ Add</button>
+    <button class="btn" id="recycle-btn" onclick="openRecycleBin()">🗑 Bin</button>
+    <button class="btn" id="albums-btn" onclick="openAlbumModal()">⊞ Albums</button>
+    <button class="btn" id="settings-btn" onclick="openSettingsModal()">⚙ Settings</button>
+    <button class="btn primary" id="add-btn" onclick="toggleAddPanel()">＋ Add</button>
   </div>
 </header>
 
@@ -339,7 +384,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 
 <!-- PHOTO VIEW HEADER (back button + album name) -->
 <div id="photo-view-header">
-  <button class="back-btn" onclick="goHome()">← Albums</button>
+  <button class="back-btn" tabindex="0" onclick="goHome()">← Albums</button>
   <span style="font-family:'Playfair Display',serif;font-size:16px;color:var(--accent2);" id="photo-view-title"></span>
 </div>
 
@@ -411,7 +456,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   </div>
   <button class="lb-arrow" id="lb-next" onclick="navigate(1)">›</button>
   <div class="lb-bottom">
-    <div class="lb-zoom-hint">Scroll zoom · Drag pan · ←→ nav · F full · S slide · Swipe on mobile</div>
+    <div class="lb-zoom-hint">Scroll/pinch zoom · Drag pan · ←→ navigate · F fullscreen · S slideshow · Swipe on mobile · D-pad on TV</div>
     <div class="slideshow-controls">
       <span style="font-size:11px;color:rgba(255,255,255,.35);">Speed:</span>
       <select class="ss-speed" id="ss-speed"><option value="3000">3s</option><option value="5000" selected>5s</option><option value="10000">10s</option></select>
@@ -753,7 +798,8 @@ function renderAlbumHome(){
     const actions=!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions"><button class="album-card-btn" title="Adjust cover" onclick="event.stopPropagation();openCoverAdjust('${safeKey}')">✥</button><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${safeKey}')">⬇</button></div>`:'';
     if(coverUrl){
       // Always start invisible — prevents flash of natural size before styles are applied (affects all formats incl. GIF)
-      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy" style="opacity:0;"></div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
+      card.setAttribute('tabindex','0');
+      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy" style="opacity:0;"></div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}`;
       const cardImg = card.querySelector('img');
       const applyAdjust = () => {
         const cardSize = card.getBoundingClientRect().width || card.offsetWidth || 0;
@@ -792,7 +838,8 @@ function renderAlbumHome(){
         cardImg.onload = applyAdjust;
       }
     } else {
-      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name">${label}</div><div class="album-card-count">${count} photo${count!==1?'s':''}</div></div>${actions}`;
+      card.setAttribute('tabindex','0');
+      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}`;
     }
     // checkbox toggle
     const cb=card.querySelector('.album-card-checkbox');
@@ -807,6 +854,12 @@ function renderAlbumHome(){
         return;
       }
       openAlbumView(key);
+    });
+    card.addEventListener('keydown',e=>{
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();
+        if(albumSelectMode&&!isSpecial){cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'));}
+        else openAlbumView(key);
+      }
     });
     return card;
   };
@@ -842,6 +895,13 @@ function renderAlbumHome(){
     const cover=albumCovers[a]||null;
     grid.appendChild(makeCard(a,a,counts[a]||0,cover));
   });
+  // On TV (no pointer), auto-focus first card so D-pad works immediately
+  if(window.matchMedia('(pointer:none),(pointer:coarse)').matches && window.innerWidth>=960){
+    requestAnimationFrame(()=>{
+      const first=grid.querySelector('.album-card[tabindex]');
+      if(first) first.focus();
+    });
+  }
 }
 
 // ALBUMS
@@ -1555,6 +1615,7 @@ function renderGrid(){
     const dn=query?p.name.replace(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi'),'<mark style="background:var(--accent);color:#1a1200;border-radius:2px;padding:0 2px">$1</mark>'):p.name;
     const div=document.createElement('div');
     div.className=`thumb${isStarred?' starred':''}${isSelected?' selected':''}${selectMode?' select-mode':''}`;
+    div.setAttribute('tabindex','0');
     const pJson=JSON.stringify({url:p.url,album:p.album}).replace(/"/g,'&quot;');
     div.innerHTML=`
       <div class="thumb-inner">
@@ -1569,8 +1630,21 @@ function renderGrid(){
       </div>`;
     div.addEventListener('click',()=>{ if(selectMode){toggleSelect(String(p.added));return;} openLb(i,visible); });
     div.addEventListener('dblclick',e=>{ e.preventDefault(); if(!selectMode){openLb(i,visible);setTimeout(()=>zoomBy(1),80);} });
+    div.addEventListener('keydown',e=>{
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();
+        if(selectMode) toggleSelect(String(p.added));
+        else openLb(i,visible);
+      }
+    });
     grid.appendChild(div);
   });
+  // On TV, auto-focus first thumb so D-pad works immediately
+  if(window.matchMedia('(pointer:none),(pointer:coarse)').matches && window.innerWidth>=960){
+    requestAnimationFrame(()=>{
+      const first=grid.querySelector('.thumb[tabindex]');
+      if(first) first.focus();
+    });
+  }
 }
 function toggleSelect(id){
   selectedIds.has(id)?selectedIds.delete(id):selectedIds.add(id);
@@ -1581,6 +1655,8 @@ function renderAll(){ renderTabs(); renderAlbumHome(); }
 // LIGHTBOX
 function openLb(index,photos){
   lbPhotos=photos; lbIndex=index;
+  // Remember which element had focus so we can restore it on close
+  _lbReturnFocus = document.activeElement;
   document.getElementById('lb').classList.add('open');
   document.body.style.overflow='hidden';
   showLbPhoto();
@@ -1588,13 +1664,22 @@ function openLb(index,photos){
 function closeLb(){
   stopSlideshow();
   if(document.fullscreenElement){
-    document.exitFullscreen().finally(()=>{setFsStyles(false);document.getElementById('lb').classList.remove('open');document.body.style.overflow='';});
+    document.exitFullscreen().finally(()=>{setFsStyles(false);document.getElementById('lb').classList.remove('open');document.body.style.overflow='';_restoreLbFocus();});
   } else {
     document.getElementById('lb').classList.remove('open');
     document.body.style.overflow='';
+    _restoreLbFocus();
   }
 }
+function _restoreLbFocus(){
+  // Return focus to the thumbnail that was clicked, for D-pad continuity
+  if(_lbReturnFocus && typeof _lbReturnFocus.focus==='function'){
+    requestAnimationFrame(()=>{ try{_lbReturnFocus.focus({preventScroll:false});}catch(e){} });
+  }
+  _lbReturnFocus=null;
+}
 let _lbLoadToken = 0; // increments each navigation to cancel stale loads
+let _lbReturnFocus = null; // element to return focus to when lightbox closes
 function showLbPhoto(){
   const p=lbPhotos[lbIndex];
   const img=document.getElementById('lb-img');
@@ -1840,27 +1925,74 @@ window.addEventListener('mouseup',()=>{isDragging=false;lbImg.classList.remove('
 lbImg.addEventListener('dblclick',()=>{scale<=1?zoomBy(1):resetTransform();});
 
 // KEYBOARD
+// ── KEYBOARD / D-PAD / REMOTE ──────────────────────────────────────────────
+// Tracks which focusable grid we are in: 'albums' | 'photos' | 'lightbox'
 document.addEventListener('keydown',e=>{
-  if(!document.getElementById('lb').classList.contains('open')) return;
-  // If a modal is open, Escape closes the modal only
-  if(e.key==='Escape'){
-    if(document.getElementById('rename-modal').classList.contains('open')){closeRenameModal();return;}
-    if(document.getElementById('move-modal').classList.contains('open')){closeMoveModal();return;}
-    if(document.fullscreenElement) document.exitFullscreen();
-    else closeLb();
+  const lbOpen = document.getElementById('lb').classList.contains('open');
+  const inInput = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
+
+  // ── LIGHTBOX shortcuts ──────────────────────────────────────────────────
+  if(lbOpen){
+    if(e.key==='Escape'){
+      if(document.getElementById('rename-modal').classList.contains('open')){closeRenameModal();return;}
+      if(document.getElementById('move-modal').classList.contains('open')){closeMoveModal();return;}
+      if(document.fullscreenElement) document.exitFullscreen();
+      else closeLb();
+      return;
+    }
+    if(inInput) return;
+    if(e.key==='ArrowLeft'||e.key==='MediaTrackPrevious'){e.preventDefault();navigate(-1);}
+    if(e.key==='ArrowRight'||e.key==='MediaTrackNext'){e.preventDefault();navigate(1);}
+    if(e.key==='+'||e.key==='=') zoomBy(0.25);
+    if(e.key==='-') zoomBy(-0.25);
+    if(e.key==='r') rotate(90);
+    if(e.key==='R') rotate(-90);
+    if(e.key==='0') resetTransform();
+    if(e.key==='f'||e.key==='F') toggleFullscreen();
+    if(e.key==='s'||e.key==='S') toggleSlideshow();
+    if(e.key==='MediaPlayPause') toggleSlideshow();
+    if(document.fullscreenElement) showFsUI();
     return;
   }
-  // Don't fire shortcuts if rename input is focused
-  if(document.activeElement===document.getElementById('rename-input')) return;
-  if(e.key==='ArrowLeft') navigate(-1);
-  if(e.key==='ArrowRight') navigate(1);
-  if(e.key==='+'||e.key==='=') zoomBy(0.25);
-  if(e.key==='-') zoomBy(-0.25);
-  if(e.key==='r'||e.key==='R') rotate(90);
-  if(e.key==='0') resetTransform();
-  if(e.key==='f'||e.key==='F') toggleFullscreen();
-  if(e.key==='s'||e.key==='S') toggleSlideshow();
-  if(document.fullscreenElement) showFsUI();
+
+  // ── GALLERY D-PAD NAVIGATION (no lightbox, no input focused) ───────────
+  if(inInput) return;
+
+  // Escape: go back from album view to home
+  if(e.key==='Escape'||e.key==='Backspace'||e.key==='GoBack'){
+    const isInAlbum = document.getElementById('gallery-wrap').style.display!=='none';
+    if(isInAlbum){e.preventDefault();goHome();return;}
+  }
+
+  // Arrow keys navigate between focusable cards/thumbs
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){
+    e.preventDefault();
+    const isAlbumHome = document.getElementById('album-home').style.display!=='none';
+    const selector = isAlbumHome ? '.album-card[tabindex]' : '.thumb[tabindex]';
+    const items = [...document.querySelectorAll(selector)];
+    if(!items.length) return;
+
+    const focused = document.activeElement;
+    let idx = items.indexOf(focused);
+
+    // If nothing focused yet, focus first item
+    if(idx===-1){items[0].focus();return;}
+
+    // Figure out how many columns the grid has
+    const firstRect = items[0].getBoundingClientRect();
+    const secondInNextRow = items.find(el=>el.getBoundingClientRect().top > firstRect.top+5);
+    const cols = secondInNextRow ? items.indexOf(secondInNextRow) : items.length;
+
+    let next = idx;
+    if(e.key==='ArrowRight') next = idx+1;
+    else if(e.key==='ArrowLeft') next = idx-1;
+    else if(e.key==='ArrowDown') next = idx+cols;
+    else if(e.key==='ArrowUp') next = idx-cols;
+
+    next = Math.max(0,Math.min(items.length-1,next));
+    items[next].focus();
+    items[next].scrollIntoView({block:'nearest',behavior:'smooth'});
+  }
 });
 
 // UPLOAD
@@ -2090,6 +2222,14 @@ async function loadGallery(){
 
 document.getElementById('pw-input').focus();
 applyBranding();
+
+// Detect platform and tag <html> for CSS targeting
+(function(){
+  const isTV = window.matchMedia('(pointer:none),(pointer:coarse)').matches && window.innerWidth >= 960;
+  const isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent) || (window.innerWidth < 768 && 'ontouchstart' in window);
+  if(isTV) document.documentElement.classList.add('is-tv');
+  if(isMobile) document.documentElement.classList.add('is-mobile');
+})();
 </script>
 </body>
 </html>
