@@ -604,18 +604,6 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   </div>
 </div>
 
-<!-- DUPLICATE RESULTS MODAL -->
-<div id="dupe-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99996;align-items:center;justify-content:center;">
-  <div class="modal-box" style="width:460px;max-height:80vh;overflow-y:auto;">
-    <h3 id="dupe-modal-title">🔍 Duplicate Check Results</h3>
-    <div id="dupe-modal-body" style="display:flex;flex-direction:column;gap:10px;font-size:13px;"></div>
-    <div class="row" style="justify-content:flex-end;margin-top:4px;">
-      <button class="btn" onclick="closeDupeModal(false)">Cancel</button>
-      <button class="btn primary" id="dupe-modal-confirm" onclick="closeDupeModal(true)" style="display:none;">Upload New Photos</button>
-    </div>
-  </div>
-</div>
-
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbxNq9RrSAe1WsPou2rvCY5VJcAFSPUBLqM7KrZ1fiweclLKwIehbWWC7kGQfQHoT9Bt2Q/exec';
 const IMGBB_KEY = '0d097706b237d98b5ac6cf1b00cb40f7';
@@ -639,8 +627,6 @@ let albumCovers = JSON.parse(localStorage.getItem('gallery_covers')||'{}');
 let albumCoverPositions = JSON.parse(localStorage.getItem('gallery_cover_positions')||'{}');
 let albumRotations = JSON.parse(localStorage.getItem('gallery_album_rotations')||'{}');
 const rotationMap = JSON.parse(localStorage.getItem('gallery_rotations')||'{}');
-let photoHashes = JSON.parse(localStorage.getItem('gallery_hashes')||'{}'); // content fingerprints
-function saveHashes(){ localStorage.setItem('gallery_hashes',JSON.stringify(photoHashes)); }
 
 // Clear legacy default albums if they were never customised
 (function(){
@@ -2009,148 +1995,18 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-// ── DUPLICATE DETECTION ───────────────────────────────────────────────────
-// Draws image onto 16×16 canvas and hashes the pixel data — catches same
-// image even if renamed or re-saved at slightly different quality.
-async function computeImageFingerprint(file){
-  return new Promise(resolve=>{
-    const img=new Image();
-    const url=URL.createObjectURL(file);
-    img.onload=()=>{
-      try{
-        const SIZE=16;
-        const c=document.createElement('canvas'); c.width=SIZE; c.height=SIZE;
-        const ctx=c.getContext('2d');
-        ctx.drawImage(img,0,0,SIZE,SIZE);
-        const d=ctx.getImageData(0,0,SIZE,SIZE).data;
-        // Simple but effective: sum every 4th channel value into a hex string
-        let hash='';
-        for(let i=0;i<d.length;i+=16){ hash+=(d[i]^d[i+1]^d[i+2]).toString(16).padStart(2,'0'); }
-        resolve(hash);
-      }catch(e){ resolve(null); } // cross-origin or tainted canvas — skip
-      finally{ URL.revokeObjectURL(url); }
-    };
-    img.onerror=()=>{ URL.revokeObjectURL(url); resolve(null); };
-    img.src=url;
-  });
-}
-
 // UPLOAD
-async function handleFilesSelect(files){
+function handleFilesSelect(files){
   if(!files||!files.length) return;
   const imgs=Array.from(files).filter(f=>f.type.startsWith('image/'));
   if(!imgs.length){showToast('Please select image files.',true);return;}
-
-  showToast('Checking for duplicates…');
-
-  // Compute fingerprints for all selected files
-  const fingerprints=await Promise.all(imgs.map(f=>computeImageFingerprint(f)));
-  // Also check within this batch itself (prevent uploading same file twice in one session)
-  const batchHashes=new Set();
-
-  const existingNames=new Set(data.photos.map(p=>p.name.toLowerCase()));
-  const existingHashes=new Set(Object.values(photoHashes));
-
-  const nameDupes=[];
-  const contentDupes=[];
-  const clean=[];
-
-  imgs.forEach((f,i)=>{
-    const baseName=f.name.replace(/\.[^.]+$/,'').toLowerCase();
-    const fp=fingerprints[i];
-    const isNameDupe=existingNames.has(baseName);
-    const isContentDupe=fp && (existingHashes.has(fp) || batchHashes.has(fp));
-    if(isContentDupe){
-      contentDupes.push(f.name);
-    } else if(isNameDupe){
-      nameDupes.push(f.name);
-    } else {
-      if(fp) batchHashes.add(fp);
-      clean.push({file:f, name:f.name.replace(/\.[^.]+$/,''), hash:fp});
-    }
-  });
-
-  // Show clear summary of what was blocked
-  const msgs=[];
-  if(contentDupes.length) msgs.push(`🚫 Blocked ${contentDupes.length} exact duplicate${contentDupes.length>1?'s':''} (same image content):\n  ${contentDupes.join(', ')}`);
-  if(nameDupes.length)    msgs.push(`⚠️ Skipped ${nameDupes.length} file${nameDupes.length>1?'s':''} with same name as existing photos:\n  ${nameDupes.join(', ')}`);
-
-  // Show in-page modal instead of alert/confirm — handles 100+ filenames safely
-  if(contentDupes.length || nameDupes.length){
-    await showDupeModal(contentDupes, nameDupes, clean);
-  } else {
-    // All clean — proceed directly
-    pendingFiles=clean;
-    renderBulkList();
-    document.getElementById('add-panel').classList.add('open');
-    document.getElementById('drop-zone').style.display='none';
-    document.getElementById('bulk-meta').style.display='flex';
-  }
-}
-
-// Resolves true if user confirms upload, false if cancelled
-let _dupeResolve=null;
-function showDupeModal(contentDupes, nameDupes, clean){
-  return new Promise(resolve=>{
-    _dupeResolve=resolve;
-    const modal=document.getElementById('dupe-modal');
-    const body=document.getElementById('dupe-modal-body');
-    const confirmBtn=document.getElementById('dupe-modal-confirm');
-    const title=document.getElementById('dupe-modal-title');
-    body.innerHTML='';
-
-    // Content duplicates section
-    if(contentDupes.length){
-      const sec=document.createElement('div');
-      sec.style.cssText='background:rgba(192,57,43,.12);border:1px solid rgba(192,57,43,.35);border-radius:8px;padding:11px 13px;';
-      sec.innerHTML=`<div style="font-weight:500;color:#e74c3c;margin-bottom:6px;">🚫 ${contentDupes.length} exact duplicate${contentDupes.length>1?'s':''} blocked</div>`
-        +`<div style="font-size:11px;color:var(--muted);line-height:1.7;">${contentDupes.join(' · ')}</div>`;
-      body.appendChild(sec);
-    }
-
-    // Name duplicates section
-    if(nameDupes.length){
-      const sec=document.createElement('div');
-      sec.style.cssText='background:rgba(200,169,110,.08);border:1px solid rgba(200,169,110,.25);border-radius:8px;padding:11px 13px;';
-      sec.innerHTML=`<div style="font-weight:500;color:var(--accent);margin-bottom:6px;">⚠️ ${nameDupes.length} file${nameDupes.length>1?'s':''} skipped — same name as existing photos</div>`
-        +`<div style="font-size:11px;color:var(--muted);line-height:1.7;">${nameDupes.join(' · ')}</div>`;
-      body.appendChild(sec);
-    }
-
-    // Clean files section
-    if(clean.length){
-      const sec=document.createElement('div');
-      sec.style.cssText='background:rgba(39,174,96,.1);border:1px solid rgba(39,174,96,.3);border-radius:8px;padding:11px 13px;';
-      sec.innerHTML=`<div style="font-weight:500;color:#27ae60;">✅ ${clean.length} new photo${clean.length>1?'s':''} ready to upload</div>`;
-      body.appendChild(sec);
-      title.textContent='🔍 Duplicate Check — Some Skipped';
-      confirmBtn.textContent=`Upload ${clean.length} New Photo${clean.length>1?'s':''}`;
-      confirmBtn.style.display='inline-flex';
-    } else {
-      title.textContent='🚫 All Files Already Exist';
-      const sec=document.createElement('div');
-      sec.style.cssText='text-align:center;color:var(--muted);font-size:13px;padding:8px 0;';
-      sec.textContent='Nothing new to upload. All selected files are duplicates.';
-      body.appendChild(sec);
-      confirmBtn.style.display='none';
-    }
-
-    modal.style.display='flex';
-    _pendingClean=clean;
-  });
-}
-let _pendingClean=[];
-function closeDupeModal(proceed){
-  document.getElementById('dupe-modal').style.display='none';
-  if(proceed && _pendingClean.length){
-    pendingFiles=_pendingClean;
-    renderBulkList();
-    document.getElementById('add-panel').classList.add('open');
-    document.getElementById('drop-zone').style.display='none';
-    document.getElementById('bulk-meta').style.display='flex';
-  }
-  _pendingClean=[];
-  if(_dupeResolve){ _dupeResolve(proceed); _dupeResolve=null; }
+  const existing=new Set(data.photos.map(p=>p.name.toLowerCase()));
+  const dupes=imgs.filter(f=>existing.has(f.name.replace(/\.[^.]+$/,'').toLowerCase()));
+  if(dupes.length>0&&!confirm(`${dupes.length} file(s) have same name as existing photos:\n${dupes.map(f=>f.name).join(', ')}\n\nContinue anyway?`)) return;
+  pendingFiles=imgs.map(f=>({file:f,name:f.name.replace(/\.[^.]+$/,'')}));
+  renderBulkList();
+  document.getElementById('drop-zone').style.display='none';
+  document.getElementById('bulk-meta').style.display='flex';
 }
 function renderBulkList(){
   const list=document.getElementById('bulk-list');
@@ -2196,16 +2052,12 @@ async function uploadAllToImgBB(){
     const item=pendingFiles[i]; const name=item.name.trim()||'Photo';
     document.getElementById(`prow-icon-${i}`).textContent='🔄';
     try{
-      const base64=await fileToBase64(item.file);
-      const fd=new FormData(); fd.append('image',base64.split(',')[1]); fd.append('name',name);
+      const fd=new FormData(); fd.append('image',item.file); fd.append('name',name);
       const res=await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`,{method:'POST',body:fd});
       const json=await res.json();
       if(!json.success) throw new Error(json.error?.message||'Failed');
       const url=json.data.url; const added=Date.now()+i;
-      const hash=item.hash||null;
       const photo={url,name,albums,album:albums[0]||'',added};
-      // Store hash so future uploads detect this as a duplicate
-      if(hash){ photoHashes[String(added)]=hash; saveHashes(); }
       await apiPost({action:'add',...photo,albums}); data.photos.push(photo); uploaded.push(photo);
       document.getElementById(`prow-icon-${i}`).textContent='✅';
     }catch(e){document.getElementById(`prow-icon-${i}`).textContent='❌';}
