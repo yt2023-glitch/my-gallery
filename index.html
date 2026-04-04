@@ -2082,6 +2082,7 @@ async function handleFilesSelect(files){
     // All clean — proceed directly
     pendingFiles=clean;
     renderBulkList();
+    document.getElementById('add-panel').classList.add('open');
     document.getElementById('drop-zone').style.display='none';
     document.getElementById('bulk-meta').style.display='flex';
   }
@@ -2144,6 +2145,7 @@ function closeDupeModal(proceed){
   if(proceed && _pendingClean.length){
     pendingFiles=_pendingClean;
     renderBulkList();
+    document.getElementById('add-panel').classList.add('open');
     document.getElementById('drop-zone').style.display='none';
     document.getElementById('bulk-meta').style.display='flex';
   }
