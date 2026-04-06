@@ -606,7 +606,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbxNq9RrSAe1WsPou2rvCY5VJcAFSPUBLqM7KrZ1fiweclLKwIehbWWC7kGQfQHoT9Bt2Q/exec';
-const IMGBB_KEY = '9820fd0564ea7b2621ed1889e2a37f64';
+const IMGBB_KEY = '0d097706b237d98b5ac6cf1b00cb40f7';
 
 let data = { albums:[], photos:[] };
 let currentAlbum = 'all';
@@ -2002,25 +2002,23 @@ document.addEventListener('keydown',e=>{
 // image even if renamed or re-saved at slightly different quality.
 async function computeImageFingerprint(file){
   return new Promise(resolve=>{
-    // Safety timeout — if image never loads, resolve null so upload isn't blocked
-    const timeout=setTimeout(()=>resolve(null),4000);
-    const url=URL.createObjectURL(file);
     const img=new Image();
+    const url=URL.createObjectURL(file);
     img.onload=()=>{
-      clearTimeout(timeout);
       try{
         const SIZE=16;
         const c=document.createElement('canvas'); c.width=SIZE; c.height=SIZE;
         const ctx=c.getContext('2d');
         ctx.drawImage(img,0,0,SIZE,SIZE);
         const d=ctx.getImageData(0,0,SIZE,SIZE).data;
+        // Simple but effective: sum every 4th channel value into a hex string
         let hash='';
         for(let i=0;i<d.length;i+=16){ hash+=(d[i]^d[i+1]^d[i+2]).toString(16).padStart(2,'0'); }
-        URL.revokeObjectURL(url);
         resolve(hash);
-      }catch(e){ URL.revokeObjectURL(url); resolve(null); }
+      }catch(e){ resolve(null); } // cross-origin or tainted canvas — skip
+      finally{ URL.revokeObjectURL(url); }
     };
-    img.onerror=()=>{ clearTimeout(timeout); URL.revokeObjectURL(url); resolve(null); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); resolve(null); };
     img.src=url;
   });
 }
@@ -2046,39 +2044,39 @@ async function handleFilesSelect(files){
   const clean=[];
 
   imgs.forEach((f,i)=>{
-    const baseName=f.name.replace(/\.[^.]+$/,'');
-    const baseNameLower=baseName.toLowerCase();
+    const baseName=f.name.replace(/\.[^.]+$/,'').toLowerCase();
     const fp=fingerprints[i];
+    const isNameDupe=existingNames.has(baseName);
     const isContentDupe=fp && (existingHashes.has(fp) || batchHashes.has(fp));
     if(isContentDupe){
       contentDupes.push(f.name);
+    } else if(isNameDupe){
+      nameDupes.push(f.name);
     } else {
       if(fp) batchHashes.add(fp);
-      // Auto-rename if name already exists so it still gets listed for upload
-      let finalName=baseName;
-      if(existingNames.has(baseNameLower)){
-        let counter=2;
-        while(existingNames.has((baseName+' '+counter).toLowerCase())) counter++;
-        finalName=baseName+' '+counter;
-        nameDupes.push(f.name);
-      }
-      existingNames.add(finalName.toLowerCase());
-      clean.push({file:f, name:finalName, hash:fp});
+      clean.push({file:f, name:f.name.replace(/\.[^.]+$/,''), hash:fp});
     }
   });
 
   // Show clear summary of what was blocked
   const msgs=[];
   if(contentDupes.length) msgs.push(`🚫 Blocked ${contentDupes.length} exact duplicate${contentDupes.length>1?'s':''} (same image content):\n  ${contentDupes.join(', ')}`);
-  if(nameDupes.length)    msgs.push(`⚠️ ${nameDupes.length} file${nameDupes.length>1?'s':''} auto-renamed (name already exists)`);
+  if(nameDupes.length)    msgs.push(`⚠️ Skipped ${nameDupes.length} file${nameDupes.length>1?'s':''} with same name as existing photos:\n  ${nameDupes.join(', ')}`);
 
   if(msgs.length) showToast(msgs.map(m=>m.split('\n')[0]).join(' · '), contentDupes.length>0);
 
   if(!clean.length){
-    if(contentDupes.length){
-      alert(`No new photos to upload — all selected images already exist in your gallery.\n\nBlocked: ${contentDupes.join(', ')}`);
+    if(contentDupes.length||nameDupes.length){
+      const detail=(contentDupes.length?`Blocked: ${contentDupes.join(', ')}\n`:'')+(nameDupes.length?`Same name: ${nameDupes.join(', ')}`:'');
+      alert(`No new photos to upload.\n\n${detail}`);
     }
     return;
+  }
+
+  // If some were skipped but others are clean, inform and continue with clean ones
+  if((contentDupes.length||nameDupes.length) && clean.length){
+    const skipped=[...contentDupes,...nameDupes];
+    if(!confirm(`${skipped.length} file${skipped.length>1?'s were':' was'} skipped as duplicate${skipped.length>1?'s':''}:\n${skipped.join(', ')}\n\nContinue uploading the remaining ${clean.length} photo${clean.length>1?'s':''}?`)) return;
   }
 
   pendingFiles=clean;
