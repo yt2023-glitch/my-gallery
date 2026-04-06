@@ -606,7 +606,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbxNq9RrSAe1WsPou2rvCY5VJcAFSPUBLqM7KrZ1fiweclLKwIehbWWC7kGQfQHoT9Bt2Q/exec';
-const IMGBB_KEY = 'fe70ae7c7359ea0b01b125da52334997'; 
+const IMGBB_KEY = 'fe70ae7c7359ea0b01b125da52334997';
 
 let data = { albums:[], photos:[] };
 let currentAlbum = 'all';
@@ -627,6 +627,8 @@ let albumCovers = JSON.parse(localStorage.getItem('gallery_covers')||'{}');
 let albumCoverPositions = JSON.parse(localStorage.getItem('gallery_cover_positions')||'{}');
 let albumRotations = JSON.parse(localStorage.getItem('gallery_album_rotations')||'{}');
 const rotationMap = JSON.parse(localStorage.getItem('gallery_rotations')||'{}');
+let photoHashes = JSON.parse(localStorage.getItem('gallery_hashes')||'{}'); // content fingerprints
+function saveHashes(){ localStorage.setItem('gallery_hashes',JSON.stringify(photoHashes)); }
 
 // Clear legacy default albums if they were never customised
 (function(){
@@ -1995,14 +1997,89 @@ document.addEventListener('keydown',e=>{
   }
 });
 
+// ── DUPLICATE DETECTION ───────────────────────────────────────────────────
+// Draws image onto 16×16 canvas and hashes the pixel data — catches same
+// image even if renamed or re-saved at slightly different quality.
+async function computeImageFingerprint(file){
+  return new Promise(resolve=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      try{
+        const SIZE=16;
+        const c=document.createElement('canvas'); c.width=SIZE; c.height=SIZE;
+        const ctx=c.getContext('2d');
+        ctx.drawImage(img,0,0,SIZE,SIZE);
+        const d=ctx.getImageData(0,0,SIZE,SIZE).data;
+        // Simple but effective: sum every 4th channel value into a hex string
+        let hash='';
+        for(let i=0;i<d.length;i+=16){ hash+=(d[i]^d[i+1]^d[i+2]).toString(16).padStart(2,'0'); }
+        resolve(hash);
+      }catch(e){ resolve(null); } // cross-origin or tainted canvas — skip
+      finally{ URL.revokeObjectURL(url); }
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); resolve(null); };
+    img.src=url;
+  });
+}
+
 // UPLOAD
-function handleFilesSelect(files){
+async function handleFilesSelect(files){
   if(!files||!files.length) return;
   const imgs=Array.from(files).filter(f=>f.type.startsWith('image/'));
   if(!imgs.length){showToast('Please select image files.',true);return;}
-  // Note: duplicate check removed — confirm() is blocked by browsers in file-input
-  // context and silently returns false, preventing upload. Just proceed always.
-  pendingFiles=imgs.map(f=>({file:f,name:f.name.replace(/\.[^.]+$/,'')}));
+
+  showToast('Checking for duplicates…');
+
+  // Compute fingerprints for all selected files
+  const fingerprints=await Promise.all(imgs.map(f=>computeImageFingerprint(f)));
+  // Also check within this batch itself (prevent uploading same file twice in one session)
+  const batchHashes=new Set();
+
+  const existingNames=new Set(data.photos.map(p=>p.name.toLowerCase()));
+  const existingHashes=new Set(Object.values(photoHashes));
+
+  const nameDupes=[];
+  const contentDupes=[];
+  const clean=[];
+
+  imgs.forEach((f,i)=>{
+    const baseName=f.name.replace(/\.[^.]+$/,'').toLowerCase();
+    const fp=fingerprints[i];
+    const isNameDupe=existingNames.has(baseName);
+    const isContentDupe=fp && (existingHashes.has(fp) || batchHashes.has(fp));
+    if(isContentDupe){
+      contentDupes.push(f.name);
+    } else if(isNameDupe){
+      nameDupes.push(f.name);
+    } else {
+      if(fp) batchHashes.add(fp);
+      clean.push({file:f, name:f.name.replace(/\.[^.]+$/,''), hash:fp});
+    }
+  });
+
+  // Show clear summary of what was blocked
+  const msgs=[];
+  if(contentDupes.length) msgs.push(`🚫 Blocked ${contentDupes.length} exact duplicate${contentDupes.length>1?'s':''} (same image content):\n  ${contentDupes.join(', ')}`);
+  if(nameDupes.length)    msgs.push(`⚠️ Skipped ${nameDupes.length} file${nameDupes.length>1?'s':''} with same name as existing photos:\n  ${nameDupes.join(', ')}`);
+
+  if(msgs.length) showToast(msgs.map(m=>m.split('\n')[0]).join(' · '), contentDupes.length>0);
+
+  if(!clean.length){
+    if(contentDupes.length||nameDupes.length){
+      const detail=(contentDupes.length?`Blocked: ${contentDupes.join(', ')}\n`:'')+(nameDupes.length?`Same name: ${nameDupes.join(', ')}`:'');
+      alert(`No new photos to upload.\n\n${detail}`);
+    }
+    return;
+  }
+
+  // Inform about skipped files via toast, but always proceed — confirm() is
+  // blocked silently by browsers inside file-input events and prevents upload.
+  if((contentDupes.length||nameDupes.length) && clean.length){
+    showToast(`${[...contentDupes,...nameDupes].length} duplicate(s) skipped, uploading ${clean.length} new photo(s).`);
+  }
+
+  pendingFiles=clean;
   renderBulkList();
   document.getElementById('drop-zone').style.display='none';
   document.getElementById('bulk-meta').style.display='flex';
@@ -2048,36 +2125,33 @@ async function uploadAllToImgBB(){
   pBar.style.width='0%';
   const uploaded=[];
   const failed=[];
-  // Use a base timestamp offset per file to guarantee unique 'added' keys even
-  // when multiple files are processed within the same millisecond.
-  const baseTs = Date.now();
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // Fixed base timestamp + index = guaranteed unique 'added' key per photo
+  const baseTs=Date.now();
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   for(let i=0;i<pendingFiles.length;i++){
     const item=pendingFiles[i]; const name=item.name.trim()||'Photo';
     document.getElementById(`prow-icon-${i}`).textContent='🔄';
-    // Retry up to 3 times with exponential back-off to handle rate-limit / transient errors
     let success=false;
+    // Retry up to 3 times with back-off to handle ImgBB rate limits
     for(let attempt=0;attempt<3;attempt++){
       try{
         if(attempt>0){
           document.getElementById(`prow-icon-${i}`).textContent='🔁';
-          await sleep(2000*attempt); // 2 s, then 4 s
+          await sleep(2000*attempt); // 2s, then 4s
         }
-        // Send as raw file (not base64) — more reliable with ImgBB's API
+        // Send raw File object — base64 upload is unreliable with ImgBB API
         const fd=new FormData();
-        fd.append('image', item.file);
-        fd.append('name', name);
+        fd.append('image',item.file);
+        fd.append('name',name);
         const res=await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`,{method:'POST',body:fd});
         if(!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
         const json=await res.json();
-        if(!json.success){
-          const reason=json.error?.message||json.status_txt||JSON.stringify(json);
-          throw new Error(reason);
-        }
+        if(!json.success) throw new Error(json.error?.message||json.status_txt||JSON.stringify(json));
         const url=json.data.url;
-        // Unique timestamp: base + index ensures no two photos share the same 'added' key
-        const added=baseTs + i;
+        const added=baseTs+i;
+        const hash=item.hash||null;
         const photo={url,name,albums,album:albums[0]||'',added};
+        if(hash){ photoHashes[String(added)]=hash; saveHashes(); }
         await apiPost({action:'add',...photo,albums});
         data.photos.push(photo); uploaded.push(photo);
         document.getElementById(`prow-icon-${i}`).textContent='✅';
@@ -2093,19 +2167,18 @@ async function uploadAllToImgBB(){
         }
       }
     }
-    // Small pacing delay between every upload to avoid hammering ImgBB rate limits
+    // Small pacing delay to avoid hammering ImgBB rate limits
     if(success) await sleep(300);
     done++; pBar.style.width=`${Math.round(done/total*100)}%`;
     pLbl.textContent=`Uploading ${done} of ${total}…`;
   }
-  const failMsg = failed.length ? ` (${failed.length} failed — see ❌ list)` : '';
+  const failMsg=failed.length?` (${failed.length} failed — see ❌ list)`:'';
   pLbl.textContent=`Done! ${uploaded.length} of ${total} uploaded${failMsg}.`;
-  // If some failed, keep the progress panel open so user can see which ones
   if(failed.length){
     renderGrid();
-    // Replace pending with only the failed files so the user can retry them immediately
-    pendingFiles = failed;
-    showToast(`${failed.length} photo(s) failed. Scroll up — click Upload again to retry them.`, true);
+    // Keep panel open with only the failed files so user can retry immediately
+    pendingFiles=failed;
+    showToast(`${failed.length} photo(s) failed. Click Upload All to retry them.`,true);
   } else {
     renderGrid();
     setTimeout(()=>{cancelUpload();document.getElementById('add-panel').classList.remove('open');showToast(`${uploaded.length} photo${uploaded.length>1?'s':''} added ✓`);},1800);
