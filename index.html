@@ -2029,54 +2029,34 @@ async function handleFilesSelect(files){
   const imgs=Array.from(files).filter(f=>f.type.startsWith('image/'));
   if(!imgs.length){showToast('Please select image files.',true);return;}
 
-  showToast('Checking for duplicates…');
-
-  // Compute fingerprints for all selected files
-  const fingerprints=await Promise.all(imgs.map(f=>computeImageFingerprint(f)));
-  // Also check within this batch itself (prevent uploading same file twice in one session)
-  const batchHashes=new Set();
-
-  const existingNames=new Set(data.photos.map(p=>p.name.toLowerCase()));
+  // Only block exact content duplicates (same pixels) — never block by name.
+  // Name-based blocking was silently emptying 'clean' for re-uploads and
+  // returning early before the UI could show, because every retry has the same filename.
+  showToast('Preparing…');
+  const fingerprints=await Promise.all(imgs.map(f=>computeImageFingerprint(f).catch(()=>null)));
   const existingHashes=new Set(Object.values(photoHashes));
-
-  const nameDupes=[];
+  const batchHashes=new Set();
   const contentDupes=[];
   const clean=[];
 
   imgs.forEach((f,i)=>{
-    const baseName=f.name.replace(/\.[^.]+$/,'').toLowerCase();
     const fp=fingerprints[i];
-    const isNameDupe=existingNames.has(baseName);
     const isContentDupe=fp && (existingHashes.has(fp) || batchHashes.has(fp));
     if(isContentDupe){
       contentDupes.push(f.name);
-    } else if(isNameDupe){
-      nameDupes.push(f.name);
     } else {
       if(fp) batchHashes.add(fp);
       clean.push({file:f, name:f.name.replace(/\.[^.]+$/,''), hash:fp});
     }
   });
 
-  // Show clear summary of what was blocked
-  const msgs=[];
-  if(contentDupes.length) msgs.push(`🚫 Blocked ${contentDupes.length} exact duplicate${contentDupes.length>1?'s':''} (same image content):\n  ${contentDupes.join(', ')}`);
-  if(nameDupes.length)    msgs.push(`⚠️ Skipped ${nameDupes.length} file${nameDupes.length>1?'s':''} with same name as existing photos:\n  ${nameDupes.join(', ')}`);
-
-  if(msgs.length) showToast(msgs.map(m=>m.split('\n')[0]).join(' · '), contentDupes.length>0);
-
-  if(!clean.length){
-    if(contentDupes.length||nameDupes.length){
-      const detail=(contentDupes.length?`Blocked: ${contentDupes.join(', ')}\n`:'')+(nameDupes.length?`Same name: ${nameDupes.join(', ')}`:'');
-      alert(`No new photos to upload.\n\n${detail}`);
-    }
-    return;
+  if(contentDupes.length){
+    showToast(`🚫 ${contentDupes.length} exact duplicate(s) skipped.`, true);
   }
 
-  // Inform about skipped files via toast, but always proceed — confirm() is
-  // blocked silently by browsers inside file-input events and prevents upload.
-  if((contentDupes.length||nameDupes.length) && clean.length){
-    showToast(`${[...contentDupes,...nameDupes].length} duplicate(s) skipped, uploading ${clean.length} new photo(s).`);
+  if(!clean.length){
+    showToast('All selected images are exact duplicates already in your gallery.', true);
+    return;
   }
 
   pendingFiles=clean;
