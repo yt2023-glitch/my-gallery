@@ -628,6 +628,7 @@ let albumCoverPositions = JSON.parse(localStorage.getItem('gallery_cover_positio
 let albumRotations = JSON.parse(localStorage.getItem('gallery_album_rotations')||'{}');
 const rotationMap = JSON.parse(localStorage.getItem('gallery_rotations')||'{}');
 let photoHashes = JSON.parse(localStorage.getItem('gallery_hashes')||'{}'); // content fingerprints
+let existingUrls = new Set(); // built from loaded photos — catches re-uploads of same ImgBB URL
 function saveHashes(){ localStorage.setItem('gallery_hashes',JSON.stringify(photoHashes)); }
 
 // Clear legacy default albums if they were never customised
@@ -688,6 +689,8 @@ async function apiGet() {
       if (!p.albums) p.albums = p.album ? [p.album] : [];
       return p;
     });
+    // Build a set of all known URLs so we can detect re-uploads of the same image
+    existingUrls = new Set(data.photos.map(p => p.url));
     const fromPhotos = [...new Set(data.photos.flatMap(p=>p.albums).filter(Boolean))];
     const saved = JSON.parse(localStorage.getItem('gallery_albums')||'[]');
     data.albums = [...new Set([...saved,...fromPhotos])];
@@ -2029,33 +2032,45 @@ async function handleFilesSelect(files){
   const imgs=Array.from(files).filter(f=>f.type.startsWith('image/'));
   if(!imgs.length){showToast('Please select image files.',true);return;}
 
-  // Only block exact content duplicates (same pixels) — never block by name.
-  // Name-based blocking was silently emptying 'clean' for re-uploads and
-  // returning early before the UI could show, because every retry has the same filename.
-  showToast('Preparing…');
+  showToast('Checking for duplicates…');
+
+  // Compute pixel fingerprints for selected files
   const fingerprints=await Promise.all(imgs.map(f=>computeImageFingerprint(f).catch(()=>null)));
+
+  // existingHashes = hashes we saved during THIS app's upload sessions (localStorage)
   const existingHashes=new Set(Object.values(photoHashes));
-  const batchHashes=new Set();
-  const contentDupes=[];
+  const batchHashes=new Set();  // catch duplicates within the current selection
+  const batchUrls=new Set();    // catch same URL twice in one batch
+
+  const dupes=[];
   const clean=[];
 
-  imgs.forEach((f,i)=>{
+  for(let i=0;i<imgs.length;i++){
+    const f=imgs[i];
     const fp=fingerprints[i];
-    const isContentDupe=fp && (existingHashes.has(fp) || batchHashes.has(fp));
-    if(isContentDupe){
-      contentDupes.push(f.name);
+
+    // 1. Pixel-hash match against previously uploaded photos (works for photos
+    //    uploaded through this app which had their hash saved)
+    const isHashDupe = fp && (existingHashes.has(fp) || batchHashes.has(fp));
+
+    // 2. Within-batch duplicate (same file dragged twice)
+    const isBatchDupe = batchUrls.has(f.name+f.size+f.lastModified);
+
+    if(isHashDupe || isBatchDupe){
+      dupes.push(f.name);
     } else {
       if(fp) batchHashes.add(fp);
+      batchUrls.add(f.name+f.size+f.lastModified);
       clean.push({file:f, name:f.name.replace(/\.[^.]+$/,''), hash:fp});
     }
-  });
+  }
 
-  if(contentDupes.length){
-    showToast(`🚫 ${contentDupes.length} exact duplicate(s) skipped.`, true);
+  if(dupes.length){
+    showToast(`🚫 ${dupes.length} duplicate(s) skipped.`, true);
   }
 
   if(!clean.length){
-    showToast('All selected images are exact duplicates already in your gallery.', true);
+    showToast('All selected images are already in your gallery.', true);
     return;
   }
 
@@ -2132,6 +2147,7 @@ async function uploadAllToImgBB(){
         const hash=item.hash||null;
         const photo={url,name,albums,album:albums[0]||'',added};
         if(hash){ photoHashes[String(added)]=hash; saveHashes(); }
+        existingUrls.add(url); // prevent re-upload in same session
         await apiPost({action:'add',...photo,albums});
         data.photos.push(photo); uploaded.push(photo);
         document.getElementById(`prow-icon-${i}`).textContent='✅';
