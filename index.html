@@ -606,7 +606,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbxNq9RrSAe1WsPou2rvCY5VJcAFSPUBLqM7KrZ1fiweclLKwIehbWWC7kGQfQHoT9Bt2Q/exec';
-const IMGBB_KEY = 'fe70ae7c7359ea0b01b125da52334997';
+const IMGBB_KEY = 'fe70ae7c7359ea0b01b125da52334997'; 
 
 let data = { albums:[], photos:[] };
 let currentAlbum = 'all';
@@ -2069,11 +2069,17 @@ async function uploadAllToImgBB(){
           document.getElementById(`prow-icon-${i}`).textContent='🔁';
           await sleep(2000*attempt); // 2 s, then 4 s
         }
-        const base64=await fileToBase64(item.file);
-        const fd=new FormData(); fd.append('image',base64.split(',')[1]); fd.append('name',name);
+        // Send as raw file (not base64) — more reliable with ImgBB's API
+        const fd=new FormData();
+        fd.append('image', item.file);
+        fd.append('name', name);
         const res=await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`,{method:'POST',body:fd});
+        if(!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
         const json=await res.json();
-        if(!json.success) throw new Error(json.error?.message||json.status_txt||`HTTP ${res.status}`);
+        if(!json.success){
+          const reason=json.error?.message||json.status_txt||JSON.stringify(json);
+          throw new Error(reason);
+        }
         const url=json.data.url;
         // Unique timestamp: base + index ensures no two photos share the same 'added' key
         const added=baseTs + i;
