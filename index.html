@@ -627,8 +627,6 @@ let albumCovers = JSON.parse(localStorage.getItem('gallery_covers')||'{}');
 let albumCoverPositions = JSON.parse(localStorage.getItem('gallery_cover_positions')||'{}');
 let albumRotations = JSON.parse(localStorage.getItem('gallery_album_rotations')||'{}');
 const rotationMap = JSON.parse(localStorage.getItem('gallery_rotations')||'{}');
-let photoHashes = JSON.parse(localStorage.getItem('gallery_hashes')||'{}'); // content fingerprints
-function saveHashes(){ localStorage.setItem('gallery_hashes',JSON.stringify(photoHashes)); }
 
 // Clear legacy default albums if they were never customised
 (function(){
@@ -1997,91 +1995,15 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-// ── DUPLICATE DETECTION ───────────────────────────────────────────────────
-// Draws image onto 16×16 canvas and hashes the pixel data — catches same
-// image even if renamed or re-saved at slightly different quality.
-async function computeImageFingerprint(file){
-  return new Promise(resolve=>{
-    // Safety timeout — if image never loads, resolve null so upload isn't blocked
-    const timeout=setTimeout(()=>resolve(null),4000);
-    const url=URL.createObjectURL(file);
-    const img=new Image();
-    img.onload=()=>{
-      clearTimeout(timeout);
-      try{
-        const SIZE=16;
-        const c=document.createElement('canvas'); c.width=SIZE; c.height=SIZE;
-        const ctx=c.getContext('2d');
-        ctx.drawImage(img,0,0,SIZE,SIZE);
-        const d=ctx.getImageData(0,0,SIZE,SIZE).data;
-        let hash='';
-        for(let i=0;i<d.length;i+=16){ hash+=(d[i]^d[i+1]^d[i+2]).toString(16).padStart(2,'0'); }
-        URL.revokeObjectURL(url);
-        resolve(hash);
-      }catch(e){ URL.revokeObjectURL(url); resolve(null); }
-    };
-    img.onerror=()=>{ clearTimeout(timeout); URL.revokeObjectURL(url); resolve(null); };
-    img.src=url;
-  });
-}
-
 // UPLOAD
-async function handleFilesSelect(files){
+function handleFilesSelect(files){
   if(!files||!files.length) return;
   const imgs=Array.from(files).filter(f=>f.type.startsWith('image/'));
   if(!imgs.length){showToast('Please select image files.',true);return;}
-
-  showToast('Checking for duplicates…');
-
-  // Compute fingerprints for all selected files
-  const fingerprints=await Promise.all(imgs.map(f=>computeImageFingerprint(f)));
-  // Also check within this batch itself (prevent uploading same file twice in one session)
-  const batchHashes=new Set();
-
-  const existingNames=new Set(data.photos.map(p=>p.name.toLowerCase()));
-  const existingHashes=new Set(Object.values(photoHashes));
-
-  const nameDupes=[];
-  const contentDupes=[];
-  const clean=[];
-
-  imgs.forEach((f,i)=>{
-    const baseName=f.name.replace(/\.[^.]+$/,'');
-    const baseNameLower=baseName.toLowerCase();
-    const fp=fingerprints[i];
-    const isContentDupe=fp && (existingHashes.has(fp) || batchHashes.has(fp));
-    if(isContentDupe){
-      contentDupes.push(f.name);
-    } else {
-      if(fp) batchHashes.add(fp);
-      // Auto-rename if name already exists so it still gets listed for upload
-      let finalName=baseName;
-      if(existingNames.has(baseNameLower)){
-        let counter=2;
-        while(existingNames.has((baseName+' '+counter).toLowerCase())) counter++;
-        finalName=baseName+' '+counter;
-        nameDupes.push(f.name);
-      }
-      existingNames.add(finalName.toLowerCase());
-      clean.push({file:f, name:finalName, hash:fp});
-    }
-  });
-
-  // Show clear summary of what was blocked
-  const msgs=[];
-  if(contentDupes.length) msgs.push(`🚫 Blocked ${contentDupes.length} exact duplicate${contentDupes.length>1?'s':''} (same image content):\n  ${contentDupes.join(', ')}`);
-  if(nameDupes.length)    msgs.push(`⚠️ ${nameDupes.length} file${nameDupes.length>1?'s':''} auto-renamed (name already exists)`);
-
-  if(msgs.length) showToast(msgs.map(m=>m.split('\n')[0]).join(' · '), contentDupes.length>0);
-
-  if(!clean.length){
-    if(contentDupes.length){
-      alert(`No new photos to upload — all selected images already exist in your gallery.\n\nBlocked: ${contentDupes.join(', ')}`);
-    }
-    return;
-  }
-
-  pendingFiles=clean;
+  const existing=new Set(data.photos.map(p=>p.name.toLowerCase()));
+  const dupes=imgs.filter(f=>existing.has(f.name.replace(/\.[^.]+$/,'').toLowerCase()));
+  if(dupes.length>0&&!confirm(`${dupes.length} file(s) have same name as existing photos:\n${dupes.map(f=>f.name).join(', ')}\n\nContinue anyway?`)) return;
+  pendingFiles=imgs.map(f=>({file:f,name:f.name.replace(/\.[^.]+$/,'')}));
   renderBulkList();
   document.getElementById('drop-zone').style.display='none';
   document.getElementById('bulk-meta').style.display='flex';
@@ -2136,10 +2058,7 @@ async function uploadAllToImgBB(){
       const json=await res.json();
       if(!json.success) throw new Error(json.error?.message||'Failed');
       const url=json.data.url; const added=Date.now()+i;
-      const hash=item.hash||null;
       const photo={url,name,albums,album:albums[0]||'',added};
-      // Store hash so future uploads detect this as a duplicate
-      if(hash){ photoHashes[String(added)]=hash; saveHashes(); }
       await apiPost({action:'add',...photo,albums}); data.photos.push(photo); uploaded.push(photo);
       document.getElementById(`prow-icon-${i}`).textContent='✅';
     }catch(e){document.getElementById(`prow-icon-${i}`).textContent='❌';}
