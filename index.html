@@ -2073,7 +2073,7 @@ async function uploadAllToImgBB(){
         const fd=new FormData(); fd.append('image',base64.split(',')[1]); fd.append('name',name);
         const res=await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`,{method:'POST',body:fd});
         const json=await res.json();
-        if(!json.success) throw new Error(json.error?.message||'ImgBB error');
+        if(!json.success) throw new Error(json.error?.message||json.status_txt||`HTTP ${res.status}`);
         const url=json.data.url;
         // Unique timestamp: base + index ensures no two photos share the same 'added' key
         const added=baseTs + i;
@@ -2085,7 +2085,10 @@ async function uploadAllToImgBB(){
         break;
       }catch(e){
         if(attempt===2){
+          const errMsg=e.message||'Unknown error';
           document.getElementById(`prow-icon-${i}`).textContent='❌';
+          const rowEl=document.getElementById(`prow-icon-${i}`).parentElement;
+          if(rowEl){let s=rowEl.querySelector('.uerr');if(!s){s=document.createElement('span');s.className='uerr';s.style.cssText='color:#e74c3c;font-size:10px;margin-left:4px;';rowEl.appendChild(s);}s.textContent='('+errMsg+')';}
           failed.push(item);
         }
       }
