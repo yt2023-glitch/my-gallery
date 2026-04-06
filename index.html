@@ -2000,14 +2000,8 @@ function handleFilesSelect(files){
   if(!files||!files.length) return;
   const imgs=Array.from(files).filter(f=>f.type.startsWith('image/'));
   if(!imgs.length){showToast('Please select image files.',true);return;}
-  const existing=new Set(data.photos.map(p=>p.name.toLowerCase()));
-  const dupes=imgs.filter(f=>existing.has(f.name.replace(/\.[^.]+$/,'').toLowerCase()));
-  // Warn but never silently block — user may be intentionally re-uploading failed files
-  if(dupes.length>0){
-    const names=dupes.slice(0,8).map(f=>f.name).join('\n')+(dupes.length>8?`\n…and ${dupes.length-8} more`:'');
-    const proceed=confirm(`${dupes.length} file(s) appear to already exist:\n${names}\n\nIf you are re-uploading previously failed photos, click OK.\nClick Cancel to go back.`);
-    if(!proceed) return;
-  }
+  // Note: duplicate check removed — confirm() is blocked by browsers in file-input
+  // context and silently returns false, preventing upload. Just proceed always.
   pendingFiles=imgs.map(f=>({file:f,name:f.name.replace(/\.[^.]+$/,'')}));
   renderBulkList();
   document.getElementById('drop-zone').style.display='none';
