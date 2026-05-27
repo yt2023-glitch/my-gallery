@@ -211,6 +211,16 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .cover-zoom-slider{flex:1;accent-color:var(--accent);cursor:pointer;}
 .settings-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
 .settings-divider{border:none;border-top:1px solid var(--border);margin:4px 0;}
+/* ── GID INFO PANEL ─────────────────────────────────────────────────────── */
+#lb-info-panel{display:none;position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(15,15,15,.97);border:1px solid var(--border);border-radius:12px;padding:16px 20px;min-width:280px;max-width:92vw;z-index:20;box-shadow:0 8px 32px rgba(0,0,0,.7);}
+#lb-info-panel.open{display:block;}
+.lb-info-row{display:flex;align-items:flex-start;gap:10px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px;}
+.lb-info-row:last-child{border-bottom:none;}
+.lb-info-label{color:var(--muted);min-width:52px;flex-shrink:0;padding-top:1px;}
+.lb-info-value{color:var(--text);word-break:break-all;flex:1;}
+.lb-info-gid{font-family:monospace;font-size:13px;color:var(--accent);font-weight:600;letter-spacing:.04em;}
+.lb-info-copy{background:none;border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:1px 6px;font-size:10px;cursor:pointer;margin-left:6px;transition:all .15s;flex-shrink:0;}
+.lb-info-copy:hover{border-color:var(--accent);color:var(--accent);}
 /* ── MOBILE (≤600px) ───────────────────────────────────────────────────── */
 @media(max-width:600px){
   header,.toolbar,.sort-filter-bar,.gallery-wrap,.add-panel{padding-left:14px;padding-right:14px;}
@@ -254,7 +264,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .is-tv .thumb-actions{display:flex;}
 .is-tv .album-card-actions{opacity:1;}
 /* TV: hide upload/admin buttons — not useful on TV */
-.is-tv #add-btn,.is-tv #albums-btn,.is-tv #recycle-btn,.is-tv #settings-btn{display:none;}
+.is-tv #add-btn,.is-tv #albums-btn,.is-tv #recycle-btn,.is-tv #settings-btn,.is-tv #export-btn{display:none;}
 
 /* ── FOCUS RINGS — visible on keyboard/D-pad, hidden on mouse/touch ─────── */
 :focus{outline:none;}
@@ -295,6 +305,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     <span class="storage-badge" id="storage-badge">📷 0 photos</span>
     <button class="btn" id="recycle-btn" onclick="openRecycleBin()">🗑 Bin</button>
     <button class="btn" id="albums-btn" onclick="openAlbumModal()">⊞ Albums</button>
+    <button class="btn" id="export-btn" onclick="exportCatalog()">📋 Export Catalog</button>
     <button class="btn" id="settings-btn" onclick="openSettingsModal()">⚙ Settings</button>
     <button class="btn primary" id="add-btn" onclick="toggleAddPanel()">＋ Add</button>
   </div>
@@ -444,7 +455,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
       <button class="lb-btn" id="ss-btn" title="Slideshow (S)" onclick="toggleSlideshow()">▶</button>
       <button class="lb-btn" id="fs-btn" title="Fullscreen (F)" onclick="toggleFullscreen()">⛶</button>
       <button class="lb-btn" title="Copy link" onclick="copyLink()">🔗</button>
-      <button class="lb-btn" title="Download" onclick="downloadPhoto()">⬇</button>
+      <button class="lb-btn" title="Download (with GID in filename)" onclick="downloadPhoto()">⬇</button>
+      <button class="lb-btn" id="info-btn" title="Photo Info &amp; GID" onclick="toggleInfoPanel()">ℹ</button>
       <button class="lb-btn" title="Rename" onclick="openRenameModal()">✏</button>
       <button class="lb-btn" title="Move to album" onclick="openMoveModal()">📁</button>
       <button class="lb-btn close-btn" title="Close (Esc)" onclick="closeLb()">✕</button>
@@ -455,6 +467,30 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     <img id="lb-img" src="" alt="" draggable="false">
   </div>
   <button class="lb-arrow" id="lb-next" onclick="navigate(1)">›</button>
+  <!-- GID INFO PANEL -->
+  <div id="lb-info-panel">
+    <div class="lb-info-row">
+      <span class="lb-info-label">GID</span>
+      <span class="lb-info-value lb-info-gid" id="info-gid">—</span>
+      <button class="lb-info-copy" onclick="copyGID()" title="Copy GID">Copy</button>
+    </div>
+    <div class="lb-info-row">
+      <span class="lb-info-label">Name</span>
+      <span class="lb-info-value" id="info-name">—</span>
+    </div>
+    <div class="lb-info-row">
+      <span class="lb-info-label">Albums</span>
+      <span class="lb-info-value" id="info-albums">—</span>
+    </div>
+    <div class="lb-info-row">
+      <span class="lb-info-label">Added</span>
+      <span class="lb-info-value" id="info-added">—</span>
+    </div>
+    <div class="lb-info-row">
+      <span class="lb-info-label">URL</span>
+      <span class="lb-info-value" id="info-url" style="font-size:10px;color:var(--muted);">—</span>
+    </div>
+  </div>
   <div class="lb-bottom">
     <div class="lb-zoom-hint">Scroll/pinch zoom · Drag pan · ←→ navigate · F fullscreen · S slideshow · Swipe on mobile · D-pad on TV</div>
     <div class="slideshow-controls">
@@ -629,7 +665,9 @@ let albumRotations = JSON.parse(localStorage.getItem('gallery_album_rotations')|
 const rotationMap = JSON.parse(localStorage.getItem('gallery_rotations')||'{}');
 let photoHashes = JSON.parse(localStorage.getItem('gallery_hashes')||'{}'); // content fingerprints
 let existingUrls = new Set(); // built from loaded photos — catches re-uploads of same ImgBB URL
+let gidCounter = parseInt(localStorage.getItem('gallery_gid_counter')||'0'); // auto-increment GID seed
 function saveHashes(){ localStorage.setItem('gallery_hashes',JSON.stringify(photoHashes)); }
+function saveGidCounter(){ localStorage.setItem('gallery_gid_counter',String(gidCounter)); }
 
 // Clear legacy default albums if they were never customised
 (function(){
@@ -687,6 +725,8 @@ async function apiGet() {
     data.photos = (json.photos || []).map(p => {
       // backward compat: old photos have album string, new have albums array
       if (!p.albums) p.albums = p.album ? [p.album] : [];
+      // Assign a GID if this photo doesn't have one yet
+      if (!p.gid) p.gid = assignGID(p);
       return p;
     });
     // Build a set of all known URLs so we can detect re-uploads of the same image
@@ -715,6 +755,8 @@ async function apiGet() {
       applyBranding();
     }
   } catch(e) { showToast('Could not load photos.',true); }
+  // Assign GIDs to any photos that don't have one yet (including all existing photos)
+  ensureAllGIDs();
 }
 async function apiPost(payload) {
   try { await fetch(API,{method:'POST',body:JSON.stringify(payload)}); }
@@ -1493,6 +1535,87 @@ function pickCoverAlbum(url, photoAdded){
   document.getElementById('cover-pick-modal').classList.add('open');
 }
 
+// ── GID SYSTEM ───────────────────────────────────────────────────────────────
+// GID format: GID-00001 … GID-99999 (zero-padded, 5 digits)
+// Stored on each photo object as p.gid
+// Counter persisted in localStorage so it never resets or duplicates
+
+function formatGID(n){ return 'GID-'+String(n).padStart(5,'0'); }
+
+function assignGID(photo){
+  // If photo already has a valid GID, return it unchanged
+  if(photo.gid && /^GID-\d{5,}$/.test(photo.gid)) return photo.gid;
+  gidCounter++;
+  saveGidCounter();
+  return formatGID(gidCounter);
+}
+
+// Called after apiGet — ensures every existing photo has a GID,
+// filling gaps for photos uploaded before this feature was added.
+function ensureAllGIDs(){
+  let changed=false;
+  // Sort by added (oldest first) so GIDs are assigned chronologically
+  const sorted=[...data.photos].sort((a,b)=>a.added-b.added);
+  sorted.forEach(p=>{
+    if(!p.gid || !/^GID-\d{5,}$/.test(p.gid)){
+      p.gid=assignGID(p);
+      changed=true;
+    }
+  });
+  return changed;
+}
+
+// ── INFO PANEL ────────────────────────────────────────────────────────────────
+let infoPanelOpen=false;
+function toggleInfoPanel(){
+  infoPanelOpen=!infoPanelOpen;
+  const panel=document.getElementById('lb-info-panel');
+  const btn=document.getElementById('info-btn');
+  if(infoPanelOpen){ panel.classList.add('open'); btn.classList.add('active'); updateInfoPanel(); }
+  else { panel.classList.remove('open'); btn.classList.remove('active'); }
+}
+function closeInfoPanel(){
+  infoPanelOpen=false;
+  document.getElementById('lb-info-panel').classList.remove('open');
+  document.getElementById('info-btn').classList.remove('active');
+}
+function updateInfoPanel(){
+  if(!infoPanelOpen) return;
+  const p=lbPhotos[lbIndex]; if(!p) return;
+  document.getElementById('info-gid').textContent=p.gid||'—';
+  document.getElementById('info-name').textContent=p.name||'—';
+  document.getElementById('info-albums').textContent=(p.albums&&p.albums.length)?p.albums.join(', '):(p.album||'—');
+  const d=new Date(p.added);
+  document.getElementById('info-added').textContent=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('info-url').textContent=p.url||'—';
+}
+function copyGID(){
+  const p=lbPhotos[lbIndex]; if(!p||!p.gid) return;
+  navigator.clipboard.writeText(p.gid).then(()=>showToast('GID copied! ✓'));
+}
+
+// ── EXPORT CATALOG (CSV) ─────────────────────────────────────────────────────
+function exportCatalog(){
+  if(!data.photos.length){ showToast('No photos to export.',true); return; }
+  const sorted=[...data.photos].sort((a,b)=>a.added-b.added);
+  const header=['GID','Name','Albums','Added Date','ImgBB URL'];
+  const rows=sorted.map(p=>{
+    const d=new Date(p.added);
+    const dateStr=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    const albums=(p.albums&&p.albums.length)?p.albums.join(' | '):(p.album||'');
+    return [p.gid||'',csvEsc(p.name||''),csvEsc(albums),dateStr,p.url||''].join(',');
+  });
+  const csv=[header.join(','),...rows].join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
+  const now=new Date();
+  a.download=`gallery-catalog-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast(`Catalog exported — ${sorted.length} photos ✓`);
+}
+function csvEsc(val){ return /[,"\n]/.test(val)?'"'+val.replace(/"/g,'""')+'"':val; }
+
 // COPY/DOWNLOAD
 function copyLink(){
   const p=lbPhotos[lbIndex]; if(!p) return;
@@ -1500,7 +1623,12 @@ function copyLink(){
 }
 function downloadPhoto(){
   const p=lbPhotos[lbIndex]; if(!p) return;
-  const a=document.createElement('a'); a.href=p.url; a.download=p.name||'photo'; a.target='_blank'; a.click();
+  const gid=p.gid||'';
+  const ext=p.url.split('.').pop().split('?')[0].toLowerCase();
+  const safeExt=/^(jpg|jpeg|png|gif|webp|bmp)$/.test(ext)?'.'+ext:'.jpg';
+  const baseName=(p.name||'photo').replace(/[\\/:*?"<>|]/g,'_');
+  const filename=gid?`${gid}_${baseName}${safeExt}`:`${baseName}${safeExt}`;
+  const a=document.createElement('a'); a.href=p.url; a.download=filename; a.target='_blank'; a.click();
 }
 
 // RECYCLE BIN
@@ -1668,6 +1796,7 @@ function openLb(index,photos){
 }
 function closeLb(){
   stopSlideshow();
+  closeInfoPanel();
   if(document.fullscreenElement){
     document.exitFullscreen().finally(()=>{setFsStyles(false);document.getElementById('lb').classList.remove('open');document.body.style.overflow='';_restoreLbFocus();});
   } else {
@@ -1698,6 +1827,8 @@ function showLbPhoto(){
   const isStar=starredIds.has(String(p.added));
   document.getElementById('star-btn').textContent=isStar?'★':'☆';
   document.getElementById('star-btn').classList.toggle('active',isStar);
+  // Update info panel if open
+  updateInfoPanel();
 
   // Reset transform for new image
   const albumOffset = (currentAlbum && currentAlbum!=='starred')
@@ -2151,7 +2282,8 @@ async function uploadAllToImgBB(){
         const url=json.data.url;
         const added=baseTs+i;
         const hash=item.hash||null;
-        const photo={url,name,albums,album:albums[0]||'',added};
+        const gid=assignGID({added});
+        const photo={url,name,albums,album:albums[0]||'',added,gid};
         if(hash){ photoHashes[String(added)]=hash; saveHashes(); }
         existingUrls.add(url); // prevent re-upload in same session
         await apiPost({action:'add',...photo,albums});
@@ -2203,7 +2335,7 @@ async function addPhotoByUrl(){
   const name=document.getElementById('inp-url-name').value.trim()||'Photo';
   const albums=[...document.querySelectorAll('#inp-album-list input[name=upload-album]:checked')].map(cb=>cb.value);
   if(!url){showToast('Please paste an image URL.',true);return;}
-  const added=Date.now(); const photo={url,name,albums,album:albums[0]||'',added};
+  const added=Date.now(); const gid=assignGID({added}); const photo={url,name,albums,album:albums[0]||'',added,gid};
   await apiPost({action:'add',...photo,albums}); data.photos.push(photo);
   document.getElementById('inp-url').value=''; document.getElementById('inp-url-name').value='';
   showToast('Photo added! ✓'); renderGrid();
