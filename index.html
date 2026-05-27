@@ -215,6 +215,10 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 /* ── PIN BADGE ─────────────────────────────────────────────────────────── */
 .pin-badge{position:absolute;top:6px;left:6px;background:var(--accent);color:#1a1200;font-size:10px;font-weight:600;padding:2px 6px;border-radius:999px;z-index:3;pointer-events:none;line-height:1.4;}
 .album-card-btn.pin-btn.pinned{background:rgba(200,169,110,.85);color:#1a1200;}
+.album-card[draggable=true]{cursor:grab;}
+.album-card[draggable=true]:active{cursor:grabbing;}
+.album-card.drag-over{outline:2px dashed var(--accent);outline-offset:2px;opacity:0.7;}
+.album-card.dragging-src{opacity:0.35;}
 
 /* ── LETTER SECTION HEADERS ─────────────────────────────────────────────── */
 .az-section{width:100%;grid-column:1/-1;margin-top:10px;}
@@ -667,7 +671,15 @@ const rotationMap = JSON.parse(localStorage.getItem('gallery_rotations')||'{}');
 let photoHashes = JSON.parse(localStorage.getItem('gallery_hashes')||'{}'); // content fingerprints
 let existingUrls = new Set(); // built from loaded photos — catches re-uploads of same ImgBB URL
 let pinnedAlbums = new Set(JSON.parse(localStorage.getItem('gallery_pinned')||'[]'));
-function savePinned(){ localStorage.setItem('gallery_pinned',JSON.stringify([...pinnedAlbums])); }
+let pinnedOrder = JSON.parse(localStorage.getItem('gallery_pinned_order')||'[]');
+function savePinned(){
+  localStorage.setItem('gallery_pinned',JSON.stringify([...pinnedAlbums]));
+  pinnedOrder = pinnedOrder.filter(a=>pinnedAlbums.has(a));
+  [...pinnedAlbums].forEach(a=>{ if(!pinnedOrder.includes(a)) pinnedOrder.push(a); });
+  localStorage.setItem('gallery_pinned_order',JSON.stringify(pinnedOrder));
+  // Sync to sheet — makes order permanent across all devices
+  apiPost({ action:'pinnedOrder', order: pinnedOrder });
+}
 function saveHashes(){ localStorage.setItem('gallery_hashes',JSON.stringify(photoHashes)); }
 
 // Clear legacy default albums if they were never customised
@@ -752,6 +764,13 @@ async function apiGet() {
       };
       saveSettings_toStorage();
       applyBranding();
+    }
+    // Load pinned order from sheet (overrides localStorage — source of truth)
+    if (Array.isArray(json.pinnedOrder) && json.pinnedOrder.length > 0) {
+      pinnedOrder = json.pinnedOrder;
+      pinnedAlbums = new Set(pinnedOrder);
+      localStorage.setItem('gallery_pinned_order', JSON.stringify(pinnedOrder));
+      localStorage.setItem('gallery_pinned', JSON.stringify(pinnedOrder));
     }
   } catch(e) { showToast('Could not load photos.',true); }
 }
@@ -917,9 +936,14 @@ function renderAlbumHome(){
     const sCover=starredPhotos.slice().sort((a,b)=>b.added-a.added)[0].url;
     pinnedGrid.appendChild(makeCard('starred','⭐ Starred',starredPhotos.length,sCover,false));
   }
-  // User-pinned albums
-  const userPinnedList=[...pinnedAlbums].filter(a=>data.albums.includes(a)&&(!query||a.toLowerCase().includes(query)));
-  userPinnedList.forEach(a=>{ const cover=albumCovers[a]||null; pinnedGrid.appendChild(makeCard(a,a,counts[a]||0,cover,true)); });
+  // User-pinned albums — ordered by pinnedOrder, then any newly pinned at end
+  const orderedPinned = [
+    ...pinnedOrder.filter(a=>pinnedAlbums.has(a)&&data.albums.includes(a)),
+    ...[...pinnedAlbums].filter(a=>!pinnedOrder.includes(a)&&data.albums.includes(a))
+  ].filter(a=>!query||a.toLowerCase().includes(query));
+  orderedPinned.forEach(a=>{ const cover=albumCovers[a]||null; const card=makeCard(a,a,counts[a]||0,cover,true); card.dataset.pinnedKey=a; card.setAttribute('draggable','true'); pinnedGrid.appendChild(card); });
+  // Drag-to-reorder within pinned grid
+  _initPinnedDrag(pinnedGrid);
 
   pinnedSection.appendChild(pinnedLabel);
   pinnedSection.appendChild(pinnedGrid);
@@ -988,10 +1012,52 @@ function renderAlbumHome(){
 }
 
 function togglePinAlbum(key, btn){
-  if(pinnedAlbums.has(key)){ pinnedAlbums.delete(key); }
-  else { pinnedAlbums.add(key); }
+  if(pinnedAlbums.has(key)){ pinnedAlbums.delete(key); pinnedOrder=pinnedOrder.filter(a=>a!==key); }
+  else { pinnedAlbums.add(key); if(!pinnedOrder.includes(key)) pinnedOrder.push(key); }
   savePinned();
   renderAlbumHome();
+}
+
+// Drag-to-reorder within the pinned grid
+function _initPinnedDrag(grid){
+  let dragSrc=null;
+  grid.querySelectorAll('.album-card[draggable=true]').forEach(card=>{
+    card.addEventListener('dragstart',e=>{
+      dragSrc=card;
+      card.classList.add('dragging-src');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',card.dataset.pinnedKey||'');
+    });
+    card.addEventListener('dragend',()=>{
+      card.classList.remove('dragging-src');
+      grid.querySelectorAll('.album-card').forEach(c=>c.classList.remove('drag-over'));
+      dragSrc=null;
+    });
+    card.addEventListener('dragover',e=>{
+      if(!dragSrc||dragSrc===card) return;
+      e.preventDefault(); e.dataTransfer.dropEffect='move';
+      grid.querySelectorAll('.album-card').forEach(c=>c.classList.remove('drag-over'));
+      card.classList.add('drag-over');
+    });
+    card.addEventListener('dragleave',()=>card.classList.remove('drag-over'));
+    card.addEventListener('drop',e=>{
+      e.preventDefault();
+      if(!dragSrc||dragSrc===card) return;
+      const srcKey=dragSrc.dataset.pinnedKey;
+      const tgtKey=card.dataset.pinnedKey;
+      if(!srcKey||!tgtKey) return;
+      // Reorder pinnedOrder
+      const srcIdx=pinnedOrder.indexOf(srcKey);
+      const tgtIdx=pinnedOrder.indexOf(tgtKey);
+      if(srcIdx>-1) pinnedOrder.splice(srcIdx,1);
+      const newTgtIdx=pinnedOrder.indexOf(tgtKey);
+      pinnedOrder.splice(newTgtIdx>=0?newTgtIdx:pinnedOrder.length,0,srcKey);
+      localStorage.setItem('gallery_pinned_order',JSON.stringify(pinnedOrder));
+      // Sync reordered list to sheet
+      apiPost({ action:'pinnedOrder', order: pinnedOrder });
+      renderAlbumHome();
+    });
+  });
 }
 
 function renderAzScroller(show, groups, letters){
@@ -1022,7 +1088,8 @@ function renderTabs(){
   const alist=document.getElementById('inp-album-list');
   if(alist){
     alist.innerHTML='';
-    data.albums.forEach(a=>{
+    const sortedAlbums=[...data.albums].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+    sortedAlbums.forEach(a=>{
       const lbl=document.createElement('label'); lbl.className='album-check-item';
       const cb=document.createElement('input'); cb.type='checkbox'; cb.value=a; cb.name='upload-album';
       lbl.appendChild(cb); lbl.appendChild(document.createTextNode(a));
