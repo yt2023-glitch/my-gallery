@@ -1829,7 +1829,14 @@ function showFsUI(){
   const lb=document.getElementById('lb'); lb.classList.add('ui-visible');
   clearTimeout(uiHideTimer); uiHideTimer=setTimeout(()=>lb.classList.remove('ui-visible'),3000);
 }
-document.getElementById('lb').addEventListener('mousemove',()=>{if(document.fullscreenElement)showFsUI();});
+// Only show UI on genuine mouse movement (not synthetic mousemove from button clicks)
+let _lastMouseX = -1, _lastMouseY = -1;
+document.getElementById('lb').addEventListener('mousemove', e => {
+  if (!document.fullscreenElement) return;
+  if (e.clientX === _lastMouseX && e.clientY === _lastMouseY) return;
+  _lastMouseX = e.clientX; _lastMouseY = e.clientY;
+  showFsUI();
+});
 
 // ── TOUCH HANDLING (swipe + pinch-zoom, no clashing) ──
 let swipeStartX=0, swipeStartY=0, lastTap=0;
@@ -1956,7 +1963,6 @@ document.addEventListener('keydown',e=>{
     if(e.key==='f'||e.key==='F') toggleFullscreen();
     if(e.key==='s'||e.key==='S') toggleSlideshow();
     if(e.key==='MediaPlayPause') toggleSlideshow();
-    if(document.fullscreenElement) showFsUI();
     return;
   }
 
