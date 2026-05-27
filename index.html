@@ -211,6 +211,42 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .cover-zoom-slider{flex:1;accent-color:var(--accent);cursor:pointer;}
 .settings-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
 .settings-divider{border:none;border-top:1px solid var(--border);margin:4px 0;}
+
+/* ── PIN BADGE ─────────────────────────────────────────────────────────── */
+.pin-badge{position:absolute;top:6px;left:6px;background:var(--accent);color:#1a1200;font-size:10px;font-weight:600;padding:2px 6px;border-radius:999px;z-index:3;pointer-events:none;line-height:1.4;}
+.album-card-btn.pin-btn.pinned{background:rgba(200,169,110,.85);color:#1a1200;}
+
+/* ── LETTER SECTION HEADERS ─────────────────────────────────────────────── */
+.az-section{width:100%;grid-column:1/-1;margin-top:10px;}
+.az-section:first-child{margin-top:0;}
+.az-section-label{font-family:'Playfair Display',serif;font-size:22px;color:var(--accent);font-weight:600;padding:6px 0 8px;border-bottom:1px solid var(--border);margin-bottom:10px;display:flex;align-items:baseline;gap:10px;}
+.az-section-label small{font-size:12px;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:400;}
+.az-section-grid{display:grid;gap:14px;}
+.az-section-grid.ags-sm{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));}
+.az-section-grid.ags-md{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));}
+.az-section-grid.ags-lg{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}
+@media(max-width:600px){
+  .az-section-grid.ags-sm{grid-template-columns:repeat(auto-fill,minmax(90px,1fr));}
+  .az-section-grid.ags-md{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));}
+  .az-section-grid.ags-lg{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));}
+}
+.is-tv .az-section-grid.ags-sm{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));}
+.is-tv .az-section-grid.ags-md{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}
+.is-tv .az-section-grid.ags-lg{grid-template-columns:repeat(auto-fill,minmax(380px,1fr));}
+.pinned-section-label{font-family:'Playfair Display',serif;font-size:15px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;padding:4px 0 8px;margin-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;}
+
+/* ── A-Z SCROLLER ────────────────────────────────────────────────────────── */
+#az-scroller{position:fixed;right:6px;top:50%;transform:translateY(-50%);z-index:500;display:none;flex-direction:column;align-items:center;gap:1px;background:rgba(15,15,15,.7);border:1px solid var(--border);border-radius:999px;padding:5px 3px;backdrop-filter:blur(6px);}
+#az-scroller.visible{display:flex;}
+.az-letter-btn{background:none;border:none;color:var(--muted);font-size:10px;font-weight:500;width:18px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:4px;cursor:pointer;font-family:'DM Sans',sans-serif;line-height:1;transition:background .15s,color .15s;padding:0;}
+.az-letter-btn:hover{background:var(--accent);color:#1a1200;}
+.az-letter-btn.has-albums{color:var(--text);}
+.az-letter-btn.no-albums{color:var(--border);cursor:default;}
+.az-letter-btn.no-albums:hover{background:none;color:var(--border);}
+@media(max-width:600px){
+  #az-scroller{right:3px;}
+  .az-letter-btn{font-size:9px;width:15px;height:14px;}
+}
 /* ── MOBILE (≤600px) ───────────────────────────────────────────────────── */
 @media(max-width:600px){
   header,.toolbar,.sort-filter-bar,.gallery-wrap,.add-panel{padding-left:14px;padding-right:14px;}
@@ -349,9 +385,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     <button class="search-clear" id="album-search-clear" onclick="clearAlbumSearch()" title="Clear">✕</button>
   </div>
   <select class="field sort-select" id="album-sort" onchange="renderAlbumHome()">
-    <option value="default">Default order</option>
-    <option value="az">A → Z</option>
-    <option value="za">Z → A</option>
+    <option value="default">A → Z (grouped)</option>
     <option value="most">Most photos</option>
     <option value="least">Least photos</option>
   </select>
@@ -367,6 +401,9 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 <div id="album-home">
   <div class="album-home-grid ags-md" id="album-home-grid"></div>
 </div>
+
+<!-- A-Z SCROLLER -->
+<div id="az-scroller"></div>
 
 <!-- ALBUM BULK SELECT BAR -->
 <div id="album-bulk-bar">
@@ -629,6 +666,8 @@ let albumRotations = JSON.parse(localStorage.getItem('gallery_album_rotations')|
 const rotationMap = JSON.parse(localStorage.getItem('gallery_rotations')||'{}');
 let photoHashes = JSON.parse(localStorage.getItem('gallery_hashes')||'{}'); // content fingerprints
 let existingUrls = new Set(); // built from loaded photos — catches re-uploads of same ImgBB URL
+let pinnedAlbums = new Set(JSON.parse(localStorage.getItem('gallery_pinned')||'[]'));
+function savePinned(){ localStorage.setItem('gallery_pinned',JSON.stringify([...pinnedAlbums])); }
 function saveHashes(){ localStorage.setItem('gallery_hashes',JSON.stringify(photoHashes)); }
 
 // Clear legacy default albums if they were never customised
@@ -758,6 +797,8 @@ function openAlbumView(albumKey){
   currentAlbum=albumKey;
   document.getElementById('album-home-toolbar').style.display='none';
   document.getElementById('album-home').style.display='none';
+  const scroller=document.getElementById('az-scroller');
+  if(scroller) scroller.classList.remove('visible');
   document.getElementById('photo-view-header').classList.add('visible');
   document.getElementById('photo-view-title').textContent=albumKey==='all'?'All Photos':albumKey==='starred'?'⭐ Starred':albumKey;
   document.getElementById('sort-filter-bar').style.display='flex';
@@ -776,6 +817,10 @@ function setAlbumGridSize(sz){
   const g=document.getElementById('album-home-grid');
   g.className='album-home-grid ags-'+sz;
   ['sm','md','lg'].forEach(s=>document.getElementById('ags-'+s).classList.toggle('active',s===sz));
+  // Also update any rendered section grids
+  document.querySelectorAll('.az-section-grid').forEach(sg=>{
+    sg.className='az-section-grid ags-'+sz;
+  });
 }
 
 function clearAlbumSearch(){
@@ -795,20 +840,22 @@ function renderAlbumHome(){
   const counts={};
   data.photos.forEach(p=>{(p.albums||[]).forEach(a=>{counts[a]=(counts[a]||0)+1;});});
 
-  const makeCard=(key,label,count,coverUrl)=>{
+  const makeCard=(key,label,count,coverUrl,isPinnable)=>{
     const card=document.createElement('div'); card.className='album-card';
     const isSpecial=(key==='all'||key==='starred');
+    const isPinned=pinnedAlbums.has(key);
     const savedAdj = albumCoverPositions[key];
     const safeKey=key.replace(/'/g,"\\'");
-    const actions=!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions"><button class="album-card-btn" title="Adjust cover" onclick="event.stopPropagation();openCoverAdjust('${safeKey}')">✥</button><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${safeKey}')">⬇</button></div>`:'';
+    const pinBtn=isPinnable?`<button class="album-card-btn pin-btn${isPinned?' pinned':''}" title="${isPinned?'Unpin':'Pin'} album" onclick="event.stopPropagation();togglePinAlbum('${safeKey}',this)">📌</button>`:'';
+    const actions=!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions">${pinBtn}<button class="album-card-btn" title="Adjust cover" onclick="event.stopPropagation();openCoverAdjust('${safeKey}')">✥</button><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${safeKey}')">⬇</button></div>`:'';
+    const pinBadge=isPinned?`<div class="pin-badge">📌</div>`:'';
     if(coverUrl){
-      // Always start invisible — prevents flash of natural size before styles are applied (affects all formats incl. GIF)
       card.setAttribute('tabindex','0');
-      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy" style="opacity:0;"></div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}`;
+      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy" style="opacity:0;"></div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}${pinBadge}`;
       const cardImg = card.querySelector('img');
       const applyAdjust = () => {
         const cardSize = card.getBoundingClientRect().width || card.offsetWidth || 0;
-        if (!cardSize || !cardImg.naturalWidth) return; // wait for both
+        if (!cardSize || !cardImg.naturalWidth) return;
         if (savedAdj && savedAdj.zoom !== undefined) {
           const adjFs = savedAdj.fs || 300;
           const scale = savedAdj.zoom / 100;
@@ -820,33 +867,21 @@ function renderAlbumHome(){
           cardImg.style.height = cardImg.naturalHeight + 'px';
           cardImg.style.transform = `translate(calc(-50% + ${xScaled}px), calc(-50% + ${yScaled}px)) scale(${renderScale})`;
         } else {
-          // Plain cover — apply object-fit styles while still invisible
           cardImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-width:none;max-height:none;opacity:0;transition:opacity 0.25s ease;';
         }
-        // Fade in one frame after styles are painted — works for all formats incl. GIF
         requestAnimationFrame(() => { cardImg.style.opacity = '1'; });
       };
-      // Re-apply whenever card size changes (grid sm/md/lg switch), debounced
       let _roTimer = null;
       const ro = new ResizeObserver(() => {
-        if (card.offsetWidth > 0) {
-          clearTimeout(_roTimer);
-          _roTimer = setTimeout(applyAdjust, 30);
-        }
+        if (card.offsetWidth > 0) { clearTimeout(_roTimer); _roTimer = setTimeout(applyAdjust, 30); }
       });
       ro.observe(card);
-      // Fire when image has loaded
-      if (cardImg.complete && cardImg.naturalWidth) {
-        // defer one tick so card is in DOM and has width
-        setTimeout(applyAdjust, 0);
-      } else {
-        cardImg.onload = applyAdjust;
-      }
+      if (cardImg.complete && cardImg.naturalWidth) { setTimeout(applyAdjust, 0); }
+      else { cardImg.onload = applyAdjust; }
     } else {
       card.setAttribute('tabindex','0');
-      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}`;
+      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}${pinBadge}`;
     }
-    // checkbox toggle
     const cb=card.querySelector('.album-card-checkbox');
     if(cb) cb.addEventListener('change',()=>{
       if(cb.checked){selectedAlbums.add(key);card.classList.add('album-selected');}
@@ -854,10 +889,7 @@ function renderAlbumHome(){
       updateAlbumSelectedCount();
     });
     card.addEventListener('click',()=>{
-      if(albumSelectMode){
-        if(!isSpecial){cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'));}
-        return;
-      }
+      if(albumSelectMode){ if(!isSpecial){cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'));} return; }
       openAlbumView(key);
     });
     card.addEventListener('keydown',e=>{
@@ -869,44 +901,120 @@ function renderAlbumHome(){
     return card;
   };
 
-  // Always show All Photos and Starred first (not affected by filter/sort)
+  // ── PINNED ROW (always first, before any sections) ──────────────────────
+  // "All Photos" is always pinned conceptually; user-pinned albums come after it
   const allCover=data.photos.length?data.photos.slice().sort((a,b)=>b.added-a.added)[0].url:null;
-  if(!query||'all photos'.includes(query))
-    grid.appendChild(makeCard('all','All Photos',data.photos.length,allCover));
+  const pinnedSection=document.createElement('div');
+  pinnedSection.className='az-section'; pinnedSection.id='az-section-pinned';
+  const pinnedLabel=document.createElement('div'); pinnedLabel.className='pinned-section-label';
+  pinnedLabel.innerHTML='📌 Pinned';
+  const pinnedGrid=document.createElement('div');
+  pinnedGrid.className=`az-section-grid ags-${albumGridSize}`;
+
+  if(!query||'all photos'.includes(query)) pinnedGrid.appendChild(makeCard('all','All Photos',data.photos.length,allCover,false));
   const starredPhotos=data.photos.filter(p=>starredIds.has(String(p.added)));
   if(starredPhotos.length&&(!query||'starred'.includes(query))){
     const sCover=starredPhotos.slice().sort((a,b)=>b.added-a.added)[0].url;
-    grid.appendChild(makeCard('starred','⭐ Starred',starredPhotos.length,sCover));
+    pinnedGrid.appendChild(makeCard('starred','⭐ Starred',starredPhotos.length,sCover,false));
   }
+  // User-pinned albums
+  const userPinnedList=[...pinnedAlbums].filter(a=>data.albums.includes(a)&&(!query||a.toLowerCase().includes(query)));
+  userPinnedList.forEach(a=>{ const cover=albumCovers[a]||null; pinnedGrid.appendChild(makeCard(a,a,counts[a]||0,cover,true)); });
 
-  // Filter user albums by search
-  let albums=data.albums.filter(a=>!query||a.toLowerCase().includes(query));
+  pinnedSection.appendChild(pinnedLabel);
+  pinnedSection.appendChild(pinnedGrid);
+  grid.appendChild(pinnedSection);
 
-  // Sort user albums
-  if(sort==='az') albums=albums.slice().sort((a,b)=>a.localeCompare(b));
-  else if(sort==='za') albums=albums.slice().sort((a,b)=>b.localeCompare(a));
-  else if(sort==='most') albums=albums.slice().sort((a,b)=>(counts[b]||0)-(counts[a]||0));
-  else if(sort==='least') albums=albums.slice().sort((a,b)=>(counts[a]||0)-(counts[b]||0));
+  // ── Non-pinned user albums ───────────────────────────────────────────────
+  const unpinnedAlbums=data.albums.filter(a=>!pinnedAlbums.has(a)&&(!query||a.toLowerCase().includes(query)));
 
-  if(!albums.length && query){
-    const empty=document.createElement('div');
-    empty.style.cssText='grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;';
-    empty.textContent=`No albums match "${query}"`;
-    grid.appendChild(empty);
+  // ── NON-DEFAULT SORTS: flat grid (no grouping) ───────────────────────────
+  if(sort==='most'||sort==='least'){
+    const sorted=unpinnedAlbums.slice().sort((a,b)=>sort==='most'?(counts[b]||0)-(counts[a]||0):(counts[a]||0)-(counts[b]||0));
+    // If there are unpinned albums to show, add a simple flat section
+    if(sorted.length){
+      const flatSection=document.createElement('div'); flatSection.className='az-section';
+      const flatLabel=document.createElement('div'); flatLabel.className='pinned-section-label';
+      flatLabel.innerHTML='All Albums';
+      const flatGrid=document.createElement('div'); flatGrid.className=`az-section-grid ags-${albumGridSize}`;
+      sorted.forEach(a=>{ const cover=albumCovers[a]||null; flatGrid.appendChild(makeCard(a,a,counts[a]||0,cover,true)); });
+      flatSection.appendChild(flatLabel); flatSection.appendChild(flatGrid);
+      grid.appendChild(flatSection);
+    }
+    renderAzScroller(false);
+    if(!unpinnedAlbums.length&&!query&&!pinnedGrid.children.length){
+      const empty=document.createElement('div'); empty.style.cssText='grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;'; empty.textContent='No albums yet.'; grid.appendChild(empty);
+    }
+    if(window.matchMedia('(pointer:none),(pointer:coarse)').matches&&window.innerWidth>=960){requestAnimationFrame(()=>{const first=grid.querySelector('.album-card[tabindex]');if(first)first.focus();});}
     return;
   }
 
-  albums.forEach(a=>{
-    const cover=albumCovers[a]||null;
-    grid.appendChild(makeCard(a,a,counts[a]||0,cover));
+  // ── DEFAULT: A-Z GROUPED ─────────────────────────────────────────────────
+  const sorted=unpinnedAlbums.slice().sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+
+  // Group by first letter
+  const groups={};
+  sorted.forEach(a=>{
+    const firstChar=a.trim()[0]||'#';
+    const letter=/^[A-Za-z]/.test(firstChar)?firstChar.toUpperCase():'#';
+    if(!groups[letter]) groups[letter]=[];
+    groups[letter].push(a);
   });
-  // On TV (no pointer), auto-focus first card so D-pad works immediately
-  if(window.matchMedia('(pointer:none),(pointer:coarse)').matches && window.innerWidth>=960){
-    requestAnimationFrame(()=>{
-      const first=grid.querySelector('.album-card[tabindex]');
-      if(first) first.focus();
-    });
+
+  const letters=Object.keys(groups).sort((a,b)=>{
+    if(a==='#') return 1; if(b==='#') return -1; return a.localeCompare(b);
+  });
+
+  letters.forEach(letter=>{
+    const section=document.createElement('div'); section.className='az-section'; section.id=`az-section-${letter}`;
+    const lbl=document.createElement('div'); lbl.className='az-section-label';
+    lbl.innerHTML=`${letter} <small>${groups[letter].length} album${groups[letter].length!==1?'s':''}</small>`;
+    const sGrid=document.createElement('div'); sGrid.className=`az-section-grid ags-${albumGridSize}`;
+    groups[letter].forEach(a=>{ const cover=albumCovers[a]||null; sGrid.appendChild(makeCard(a,a,counts[a]||0,cover,true)); });
+    section.appendChild(lbl); section.appendChild(sGrid);
+    grid.appendChild(section);
+  });
+
+  if(!sorted.length&&!query&&pinnedGrid.children.length<=2){
+    const empty=document.createElement('div'); empty.style.cssText='grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;'; empty.textContent='No albums yet. Create one to get started.'; grid.appendChild(empty);
   }
+  if(!sorted.length&&query){
+    const empty=document.createElement('div'); empty.style.cssText='grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;'; empty.textContent=`No albums match "${query}"`; grid.appendChild(empty);
+  }
+
+  renderAzScroller(true, groups, letters);
+
+  if(window.matchMedia('(pointer:none),(pointer:coarse)').matches&&window.innerWidth>=960){requestAnimationFrame(()=>{const first=grid.querySelector('.album-card[tabindex]');if(first)first.focus();});}
+}
+
+function togglePinAlbum(key, btn){
+  if(pinnedAlbums.has(key)){ pinnedAlbums.delete(key); }
+  else { pinnedAlbums.add(key); }
+  savePinned();
+  renderAlbumHome();
+}
+
+function renderAzScroller(show, groups, letters){
+  const scroller=document.getElementById('az-scroller');
+  if(!scroller) return;
+  scroller.innerHTML='';
+  if(!show){ scroller.classList.remove('visible'); return; }
+  scroller.classList.add('visible');
+  const allLetters='ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+  allLetters.forEach(l=>{
+    const btn=document.createElement('button');
+    btn.className='az-letter-btn';
+    btn.textContent=l==='#'?'#':l;
+    const hasAlbums=groups&&groups[l]&&groups[l].length>0;
+    btn.classList.add(hasAlbums?'has-albums':'no-albums');
+    btn.title=hasAlbums?`Jump to ${l}`:l;
+    btn.onclick=()=>{
+      if(!hasAlbums) return;
+      const sec=document.getElementById(`az-section-${l}`);
+      if(sec){ sec.scrollIntoView({behavior:'smooth',block:'start'}); }
+    };
+    scroller.appendChild(btn);
+  });
 }
 
 // ALBUMS
