@@ -227,41 +227,62 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 /* Video Lightbox */
 #video-lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.97);z-index:9998;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;}
 #video-lb.open{display:flex;}
-.vlb-top{position:fixed;top:0;left:0;right:0;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,.88),transparent);z-index:20;transition:opacity .3s;}
-#video-lb.vlb-rotated .vlb-top{display:none;}
+
+/* Top bar — hidden at 90° and 270° (sideways) */
+.vlb-top{position:fixed;top:0;left:0;right:0;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,.88),transparent);z-index:20;}
+#video-lb.vlb-r90 .vlb-top,
+#video-lb.vlb-r270 .vlb-top{display:none;}
+
 .vlb-title{font-size:13px;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw;}
 .vlb-controls{display:flex;gap:6px;align-items:center;flex-shrink:0;}
-.vlb-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#fff;width:34px;height:34px;border-radius:7px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s,transform .35s ease;}
+.vlb-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#fff;width:34px;height:34px;border-radius:7px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;}
 .vlb-btn:hover{background:rgba(255,255,255,.22);}
 .vlb-btn.close-btn{font-size:17px;}
-.vlb-btn.rotate-btn svg{transition:transform .4s cubic-bezier(.34,1.2,.64,1);}
+/* Degree badge inside the rotate button */
+#vlb-deg-badge{font-size:9px;font-weight:700;letter-spacing:-.3px;line-height:1;pointer-events:none;}
 
-/* The rotation wrapper — this is what we spin */
+/* The rotation wrapper */
 #vlb-rotate-wrap{
   position:relative;
   display:flex;align-items:center;justify-content:center;
+  /* default landscape size */
   width:min(92vw,1100px);
   aspect-ratio:16/9;
-  transition:transform .4s cubic-bezier(.34,1.2,.64,1), width .4s ease, height .4s ease;
   transform-origin:center center;
   border-radius:8px;
   overflow:hidden;
   box-shadow:0 8px 60px rgba(0,0,0,.8);
   flex-shrink:0;
+  /* smooth transition on all properties */
+  transition:transform .45s cubic-bezier(.4,0,.2,1), width .45s ease, height .45s ease, aspect-ratio .45s ease, border-radius .45s ease;
 }
 #vlb-rotate-wrap iframe{width:100%;height:100%;border:none;display:block;background:#000;}
 
-/* Rotated state: swap dimensions so it fills portrait screen */
-#video-lb.vlb-rotated #vlb-rotate-wrap{
-  /* rotate 90deg clockwise; width becomes screen height, height becomes screen width */
-  transform: rotate(90deg);
-  width: calc(100vh - 20px);
-  height: calc(100vw - 20px);
-  aspect-ratio: unset;
+/* 90°  — portrait fill (swap w/h, rotate CW) */
+#video-lb.vlb-r90 #vlb-rotate-wrap{
+  transform:rotate(90deg);
+  width:calc(100vh - 4px);
+  height:calc(100vw - 4px);
+  aspect-ratio:unset;
+  border-radius:0;
+}
+/* 180° — upside-down landscape (same dimensions, just flip) */
+#video-lb.vlb-r180 #vlb-rotate-wrap{
+  transform:rotate(180deg);
+  width:min(92vw,1100px);
+  aspect-ratio:16/9;
+  border-radius:8px;
+}
+/* 270° — portrait fill, rotated CCW */
+#video-lb.vlb-r270 #vlb-rotate-wrap{
+  transform:rotate(270deg);
+  width:calc(100vh - 4px);
+  height:calc(100vw - 4px);
+  aspect-ratio:unset;
   border-radius:0;
 }
 
-/* Floating rotate + close bar shown when rotated (since top bar is hidden) */
+/* Floating pill — visible at any non-zero rotation */
 #vlb-float-bar{
   display:none;
   position:fixed;
@@ -269,18 +290,46 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   left:50%;
   transform:translateX(-50%);
   z-index:20;
-  gap:10px;
-  background:rgba(0,0,0,.55);
-  border:1px solid rgba(255,255,255,.15);
+  gap:8px;
+  align-items:center;
+  background:rgba(0,0,0,.6);
+  border:1px solid rgba(255,255,255,.18);
   border-radius:999px;
   padding:6px 14px;
+  white-space:nowrap;
 }
-#video-lb.vlb-rotated #vlb-float-bar{display:flex;}
+#video-lb.vlb-r90  #vlb-float-bar,
+#video-lb.vlb-r180 #vlb-float-bar,
+#video-lb.vlb-r270 #vlb-float-bar{display:flex;}
+#vlb-float-deg{font-size:11px;color:rgba(255,255,255,.55);min-width:28px;text-align:center;}
 
+/* Nav arrows — hide when sideways */
 .vlb-nav{position:fixed;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;width:42px;height:56px;border-radius:8px;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;z-index:10;}
 .vlb-nav:hover{background:rgba(255,255,255,.18);}
-#video-lb.vlb-rotated .vlb-nav{display:none;}
+#video-lb.vlb-r90 .vlb-nav,
+#video-lb.vlb-r270 .vlb-nav{display:none;}
 #vlb-prev{left:8px;}#vlb-next{right:8px;}
+
+/* ── VLB FULLSCREEN: the whole #video-lb becomes the fullscreen element     ──
+   This keeps our CSS rotation intact — the iframe never escapes the wrapper. */
+#video-lb:fullscreen,
+#video-lb:-webkit-full-screen{
+  background:#000;
+  width:100vw; height:100vh;
+  display:flex; align-items:center; justify-content:center;
+}
+/* In fullscreen, the rotate-wrap still obeys its rotation-class sizing */
+#video-lb:fullscreen #vlb-rotate-wrap,
+#video-lb:-webkit-full-screen #vlb-rotate-wrap{
+  box-shadow:none;
+}
+/* Fullscreen button active state */
+#video-lb.vlb-fullscreen #vlb-fs-btn,
+#video-lb.vlb-fullscreen #vlb-fs-btn2{
+  background:rgba(200,169,110,.25);
+  border-color:var(--accent);
+  color:var(--accent);
+}
 
 /* ── PIN BADGE ─────────────────────────────────────────────────────────── */
 .pin-badge{position:absolute;top:6px;left:6px;background:var(--accent);color:#1a1200;font-size:10px;font-weight:600;padding:2px 6px;border-radius:999px;z-index:3;pointer-events:none;line-height:1.4;}
@@ -580,22 +629,28 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <div class="vlb-top">
     <div class="vlb-title" id="vlb-title"></div>
     <div class="vlb-controls">
-      <button class="vlb-btn rotate-btn" id="vlb-rotate-btn" title="Rotate player (R)" onclick="toggleVideoRotate()">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="vlb-rotate-icon"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+      <button class="vlb-btn" id="vlb-rotate-btn" title="Rotate 90° (R)" onclick="rotateVideoStep()">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/></svg>
       </button>
+      <button class="vlb-btn" id="vlb-fs-btn" title="Fullscreen (F)" onclick="toggleVlbFullscreen()">⛶</button>
       <button class="vlb-btn close-btn" title="Close (Esc)" onclick="closeVideoLb()">✕</button>
     </div>
   </div>
   <button class="vlb-nav" id="vlb-prev" onclick="navigateVideo(-1)">‹</button>
   <div id="vlb-rotate-wrap">
-    <iframe id="vlb-iframe" src="" scrolling="no" frameborder="0" allowfullscreen="true" webkitallowfullscreen="true" mozallowfullscreen="true"></iframe>
+    <!-- allowfullscreen intentionally removed: native iframe fullscreen escapes CSS rotation.
+         Use the ⛶ button above which fullscreens the entire #video-lb, keeping rotation intact. -->
+    <iframe id="vlb-iframe" src="" scrolling="no" frameborder="0"></iframe>
   </div>
   <button class="vlb-nav" id="vlb-next" onclick="navigateVideo(1)">›</button>
-  <!-- Floating bar shown only in rotated mode (top bar hidden) -->
+  <!-- Floating pill: visible whenever not at 0° -->
   <div id="vlb-float-bar">
-    <button class="vlb-btn rotate-btn" title="Restore orientation" onclick="toggleVideoRotate()">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 2v6h-6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 22v-6h6"/></svg>
+    <button class="vlb-btn" title="Rotate 90° (R)" onclick="rotateVideoStep()">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/></svg>
     </button>
+    <span id="vlb-float-deg">90°</span>
+    <button class="vlb-btn" title="Reset rotation" onclick="resetVideoRotation()" style="font-size:10px;width:auto;padding:0 8px;">Reset</button>
+    <button class="vlb-btn" id="vlb-fs-btn2" title="Fullscreen (F)" onclick="toggleVlbFullscreen()">⛶</button>
     <button class="vlb-btn close-btn" title="Close" onclick="closeVideoLb()">✕</button>
   </div>
 </div>
@@ -761,7 +816,30 @@ const VIDEO_ITEMS = [
 
 // Video lightbox state
 let vlbIndex = 0;
-let vlbRotated = false;
+let vlbRotStep = 0; // 0=0°, 1=90°, 2=180°, 3=270°
+
+const VLB_ROT_CLASSES = ['', 'vlb-r90', 'vlb-r180', 'vlb-r270'];
+const VLB_ROT_LABELS  = ['0°', '90°', '180°', '270°'];
+
+function _applyVlbRotation() {
+  const lb = document.getElementById('video-lb');
+  // Remove all rotation classes then add the current one
+  lb.classList.remove('vlb-r90', 'vlb-r180', 'vlb-r270');
+  if (vlbRotStep > 0) lb.classList.add(VLB_ROT_CLASSES[vlbRotStep]);
+  // Update floating pill degree label
+  const deg = document.getElementById('vlb-float-deg');
+  if (deg) deg.textContent = VLB_ROT_LABELS[vlbRotStep];
+}
+
+function rotateVideoStep() {
+  vlbRotStep = (vlbRotStep + 1) % 4;
+  _applyVlbRotation();
+}
+
+function resetVideoRotation() {
+  vlbRotStep = 0;
+  _applyVlbRotation();
+}
 
 function openVideoAlbum() {
   currentAlbum = '__videos__';
@@ -815,9 +893,9 @@ function openVideoAlbum() {
 
 function openVideoLb(index) {
   vlbIndex = index;
-  vlbRotated = false;
+  vlbRotStep = 0;
   const lb = document.getElementById('video-lb');
-  lb.classList.remove('vlb-rotated');
+  lb.classList.remove('vlb-r90', 'vlb-r180', 'vlb-r270');
   const v = VIDEO_ITEMS[vlbIndex];
   document.getElementById('vlb-title').textContent = v.title;
   document.getElementById('vlb-iframe').src = v.embedUrl;
@@ -828,26 +906,22 @@ function openVideoLb(index) {
 }
 
 function closeVideoLb() {
-  vlbRotated = false;
+  vlbRotStep = 0;
+  if (document.fullscreenElement) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) exit.call(document).catch(() => {});
+  }
   const lb = document.getElementById('video-lb');
-  lb.classList.remove('open', 'vlb-rotated');
+  lb.classList.remove('open', 'vlb-r90', 'vlb-r180', 'vlb-r270', 'vlb-fullscreen');
   document.getElementById('vlb-iframe').src = ''; // stop video playback
   document.body.style.overflow = '';
-}
-
-function toggleVideoRotate() {
-  vlbRotated = !vlbRotated;
-  document.getElementById('video-lb').classList.toggle('vlb-rotated', vlbRotated);
-  // Animate the icon in the top bar rotate button
-  const icon = document.getElementById('vlb-rotate-icon');
-  if (icon) {
-    icon.style.transform = vlbRotated ? 'rotate(90deg)' : 'rotate(0deg)';
-  }
 }
 
 function navigateVideo(dir) {
   const next = vlbIndex + dir;
   if (next < 0 || next >= VIDEO_ITEMS.length) return;
+  vlbRotStep = 0;
+  _applyVlbRotation();
   vlbIndex = next;
   const v = VIDEO_ITEMS[vlbIndex];
   document.getElementById('vlb-title').textContent = v.title;
@@ -857,12 +931,38 @@ function navigateVideo(dir) {
   document.getElementById('vlb-next').style.opacity = vlbIndex < VIDEO_ITEMS.length - 1 ? '1' : '0.3';
 }
 
-// Close video lightbox on Esc, rotate on R
+// Keyboard: Esc=close, R=rotate step, 0=reset rotation, F=fullscreen
 document.addEventListener('keydown', e => {
   if (!document.getElementById('video-lb').classList.contains('open')) return;
-  if (e.key === 'Escape') closeVideoLb();
-  if (e.key === 'r' || e.key === 'R') toggleVideoRotate();
+  if (e.key === 'Escape') { if (document.fullscreenElement) { document.exitFullscreen(); } else { closeVideoLb(); } }
+  if (e.key === 'r' || e.key === 'R') rotateVideoStep();
+  if (e.key === '0') resetVideoRotation();
+  if (e.key === 'f' || e.key === 'F') toggleVlbFullscreen();
 });
+
+// ── VLB FULLSCREEN ────────────────────────────────────────────────────────
+// We fullscreen #video-lb itself (not the iframe), so CSS rotation is preserved.
+function toggleVlbFullscreen() {
+  const lb = document.getElementById('video-lb');
+  if (!document.fullscreenElement) {
+    const req = lb.requestFullscreen || lb.webkitRequestFullscreen || lb.mozRequestFullScreen;
+    if (req) req.call(lb).catch(() => {});
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
+    if (exit) exit.call(document);
+  }
+}
+document.addEventListener('fullscreenchange', _onVlbFsChange);
+document.addEventListener('webkitfullscreenchange', _onVlbFsChange);
+function _onVlbFsChange() {
+  const lb = document.getElementById('video-lb');
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  lb.classList.toggle('vlb-fullscreen', isFs);
+  const btn1 = document.getElementById('vlb-fs-btn');
+  const btn2 = document.getElementById('vlb-fs-btn2');
+  if (btn1) btn1.textContent = isFs ? '⊡' : '⛶';
+  if (btn2) btn2.textContent = isFs ? '⊡' : '⛶';
+}
 // ─────────────────────────────────────────────────────────────────────────
 
 let data = { albums:[], photos:[] };
