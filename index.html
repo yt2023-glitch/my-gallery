@@ -318,10 +318,31 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   width:100vw; height:100vh;
   display:flex; align-items:center; justify-content:center;
 }
-/* In fullscreen, the rotate-wrap still obeys its rotation-class sizing */
+
+/* 0° and 180° fullscreen: fill screen, keep 16/9 via min() so it never overflows */
 #video-lb:fullscreen #vlb-rotate-wrap,
 #video-lb:-webkit-full-screen #vlb-rotate-wrap{
   box-shadow:none;
+  border-radius:0;
+  /* Take whichever is smaller: full width or height-constrained width */
+  width: min(100vw, calc(100vh * 16 / 9));
+  height: min(100vh, calc(100vw * 9 / 16));
+  aspect-ratio: unset;
+  transition: none;
+}
+
+/* 90° fullscreen: player is rotated CW, so its logical width = screen height */
+#video-lb:fullscreen.vlb-r90 #vlb-rotate-wrap,
+#video-lb:-webkit-full-screen.vlb-r90 #vlb-rotate-wrap{
+  width: min(100vh, calc(100vw * 16 / 9));
+  height: min(100vw, calc(100vh * 9 / 16));
+}
+
+/* 270° fullscreen: same swap as 90° */
+#video-lb:fullscreen.vlb-r270 #vlb-rotate-wrap,
+#video-lb:-webkit-full-screen.vlb-r270 #vlb-rotate-wrap{
+  width: min(100vh, calc(100vw * 16 / 9));
+  height: min(100vw, calc(100vh * 9 / 16));
 }
 /* Fullscreen button active state */
 #video-lb.vlb-fullscreen #vlb-fs-btn,
