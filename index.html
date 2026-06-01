@@ -212,6 +212,31 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .settings-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
 .settings-divider{border:none;border-top:1px solid var(--border);margin:4px 0;}
 
+/* ── VIDEO ALBUM ────────────────────────────────────────────────────────── */
+.video-thumb{position:relative;border-radius:8px;overflow:hidden;cursor:pointer;background:#111;border:1px solid var(--border);aspect-ratio:16/9;transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease;z-index:1;}
+.video-thumb:hover{transform:scale(1.05) translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,.6),0 0 0 2px var(--accent);z-index:10;}
+.video-thumb img{width:100%;height:100%;object-fit:cover;display:block;border-radius:8px;}
+.video-play-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);transition:background .2s;}
+.video-thumb:hover .video-play-icon{background:rgba(0,0,0,.18);}
+.video-play-icon svg{width:52px;height:52px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.7));}
+.video-thumb-title{position:absolute;bottom:0;left:0;right:0;padding:8px 10px 7px;background:linear-gradient(to top,rgba(0,0,0,.82),transparent);font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.video-thumb-meta{position:absolute;top:6px;right:7px;background:rgba(0,0,0,.72);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-family:'DM Sans',sans-serif;}
+.video-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));padding:18px 40px;}
+@media(max-width:600px){.video-grid{grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px;}}
+
+/* Video Lightbox */
+#video-lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.97);z-index:9998;flex-direction:column;align-items:center;justify-content:center;}
+#video-lb.open{display:flex;}
+.vlb-top{position:fixed;top:0;left:0;right:0;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,.88),transparent);z-index:10;}
+.vlb-title{font-size:13px;color:rgba(255,255,255,.85);}
+.vlb-close{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#fff;width:34px;height:34px;border-radius:7px;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;}
+.vlb-close:hover{background:rgba(255,255,255,.22);}
+.vlb-frame-wrap{width:min(92vw,1100px);aspect-ratio:16/9;border-radius:8px;overflow:hidden;box-shadow:0 8px 60px rgba(0,0,0,.8);}
+.vlb-frame-wrap iframe{width:100%;height:100%;border:none;display:block;}
+.vlb-nav{position:fixed;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;width:42px;height:56px;border-radius:8px;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;z-index:10;}
+.vlb-nav:hover{background:rgba(255,255,255,.18);}
+#vlb-prev{left:8px;}#vlb-next{right:8px;}
+
 /* ── PIN BADGE ─────────────────────────────────────────────────────────── */
 .pin-badge{position:absolute;top:6px;left:6px;background:var(--accent);color:#1a1200;font-size:10px;font-weight:600;padding:2px 6px;border-radius:999px;z-index:3;pointer-events:none;line-height:1.4;}
 .album-card-btn.pin-btn.pinned{background:rgba(200,169,110,.85);color:#1a1200;}
@@ -505,6 +530,19 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   </div>
 </div>
 
+<!-- VIDEO LIGHTBOX -->
+<div id="video-lb">
+  <div class="vlb-top">
+    <div class="vlb-title" id="vlb-title"></div>
+    <button class="vlb-close" title="Close (Esc)" onclick="closeVideoLb()">✕</button>
+  </div>
+  <button class="vlb-nav" id="vlb-prev" onclick="navigateVideo(-1)">‹</button>
+  <div class="vlb-frame-wrap" id="vlb-frame-wrap">
+    <iframe id="vlb-iframe" src="" scrolling="no" frameborder="0" allowfullscreen="true" webkitallowfullscreen="true" mozallowfullscreen="true"></iframe>
+  </div>
+  <button class="vlb-nav" id="vlb-next" onclick="navigateVideo(1)">›</button>
+</div>
+
 <div id="album-modal">
   <div class="modal-box">
     <h3>Manage Albums</h3>
@@ -648,6 +686,111 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbxNq9RrSAe1WsPou2rvCY5VJcAFSPUBLqM7KrZ1fiweclLKwIehbWWC7kGQfQHoT9Bt2Q/exec';
 const IMGBB_KEY = 'fe70ae7c7359ea0b01b125da52334997';
+
+// ── VIDEO ALBUM DATA ──────────────────────────────────────────────────────
+// To add more videos: copy a block below with the new video's embed ID, thumbnail, title, and duration.
+const VIDEO_ITEMS = [
+  {
+    id: 'k67sm1t00yqz',
+    title: 'Sneha hot face expressions',
+    thumb: 'https://img.lulucdn.com/k67sm1t00yqz_t.jpg',
+    embedUrl: 'https://luluvid.com/e/k67sm1t00yqz',
+    duration: '07:06',
+    resolution: '1280x742'
+  }
+  // Add more videos here, e.g.:
+  // { id: 'XXXX', title: 'My next video', thumb: 'https://img.lulucdn.com/XXXX_t.jpg', embedUrl: 'https://luluvid.com/e/XXXX', duration: '05:30', resolution: '1280x720' }
+];
+
+// Video lightbox state
+let vlbIndex = 0;
+
+function openVideoAlbum() {
+  currentAlbum = '__videos__';
+  document.getElementById('album-home-toolbar').style.display = 'none';
+  document.getElementById('album-home').style.display = 'none';
+  const scroller = document.getElementById('az-scroller');
+  if (scroller) scroller.classList.remove('visible');
+  document.getElementById('photo-view-header').classList.add('visible');
+  document.getElementById('photo-view-title').textContent = '🎬 Videos';
+  document.getElementById('sort-filter-bar').style.display = 'none';
+  document.getElementById('gallery-wrap').style.display = 'none';
+  document.getElementById('album-rot-left-btn').style.display = 'none';
+  document.getElementById('album-rot-right-btn').style.display = 'none';
+
+  // Render the video grid
+  let vg = document.getElementById('video-album-grid');
+  if (!vg) {
+    vg = document.createElement('div');
+    vg.id = 'video-album-grid';
+    vg.className = 'video-grid';
+    document.getElementById('gallery-wrap').parentNode.insertBefore(vg, document.getElementById('gallery-wrap').nextSibling);
+  }
+  vg.style.display = '';
+  vg.innerHTML = '';
+
+  if (!VIDEO_ITEMS.length) {
+    vg.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:50px 20px;color:var(--muted);font-size:14px;">No videos yet.</div>';
+    return;
+  }
+
+  VIDEO_ITEMS.forEach((v, i) => {
+    const div = document.createElement('div');
+    div.className = 'video-thumb';
+    div.setAttribute('tabindex', '0');
+    div.innerHTML = `
+      <img src="${v.thumb}" alt="${v.title}" loading="lazy" onerror="this.style.display='none'">
+      <div class="video-play-icon">
+        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="40" cy="40" r="38" fill="rgba(0,0,0,0.55)" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+          <polygon points="32,24 32,56 58,40" fill="white"/>
+        </svg>
+      </div>
+      ${v.duration ? `<div class="video-thumb-meta">${v.duration}</div>` : ''}
+      <div class="video-thumb-title">${v.title}</div>
+    `;
+    div.addEventListener('click', () => openVideoLb(i));
+    div.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openVideoLb(i); } });
+    vg.appendChild(div);
+  });
+}
+
+function openVideoLb(index) {
+  vlbIndex = index;
+  const v = VIDEO_ITEMS[vlbIndex];
+  document.getElementById('vlb-title').textContent = v.title;
+  document.getElementById('vlb-iframe').src = v.embedUrl;
+  document.getElementById('vlb-prev').style.opacity = vlbIndex > 0 ? '1' : '0.3';
+  document.getElementById('vlb-next').style.opacity = vlbIndex < VIDEO_ITEMS.length - 1 ? '1' : '0.3';
+  document.getElementById('video-lb').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeVideoLb() {
+  document.getElementById('video-lb').classList.remove('open');
+  document.getElementById('vlb-iframe').src = ''; // stop video playback
+  document.body.style.overflow = '';
+}
+
+function navigateVideo(dir) {
+  const next = vlbIndex + dir;
+  if (next < 0 || next >= VIDEO_ITEMS.length) return;
+  vlbIndex = next;
+  const v = VIDEO_ITEMS[vlbIndex];
+  document.getElementById('vlb-title').textContent = v.title;
+  document.getElementById('vlb-iframe').src = '';
+  setTimeout(() => { document.getElementById('vlb-iframe').src = v.embedUrl; }, 60);
+  document.getElementById('vlb-prev').style.opacity = vlbIndex > 0 ? '1' : '0.3';
+  document.getElementById('vlb-next').style.opacity = vlbIndex < VIDEO_ITEMS.length - 1 ? '1' : '0.3';
+}
+
+// Close video lightbox on Esc key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('video-lb').classList.contains('open')) {
+    closeVideoLb();
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────
 
 let data = { albums:[], photos:[] };
 let currentAlbum = 'all';
@@ -810,6 +953,9 @@ function goHome(){
   document.getElementById('album-rot-right-btn').style.display='none';
   selectMode=false; selectedIds.clear();
   document.getElementById('select-mode-btn').classList.remove('active');
+  // Hide video grid if visible
+  const vg = document.getElementById('video-album-grid');
+  if (vg) vg.style.display = 'none';
   renderAlbumHome();
 }
 function openAlbumView(albumKey){
@@ -823,6 +969,9 @@ function openAlbumView(albumKey){
   document.getElementById('sort-filter-bar').style.display='flex';
   document.getElementById('gallery-wrap').style.display='';
   document.getElementById('search-input').value='';
+  // Hide video grid if visible
+  const vg = document.getElementById('video-album-grid');
+  if (vg) vg.style.display = 'none';
   // Show rotate buttons for all album views including 'all'
   const showRot = (albumKey !== 'starred');
   document.getElementById('album-rot-left-btn').style.display = showRot ? '' : 'none';
@@ -931,6 +1080,28 @@ function renderAlbumHome(){
   pinnedGrid.className=`az-section-grid ags-${albumGridSize}`;
 
   if(!query||'all photos'.includes(query)) pinnedGrid.appendChild(makeCard('all','All Photos',data.photos.length,allCover,false));
+
+  // ── VIDEOS default album (always pinned, next to All Photos) ────────────
+  if(!query||'videos'.includes(query)||'video'.includes(query)){
+    const videoCover = VIDEO_ITEMS.length ? VIDEO_ITEMS[0].thumb : null;
+    const videoCard = document.createElement('div');
+    videoCard.className = 'album-card';
+    videoCard.setAttribute('tabindex','0');
+    videoCard.innerHTML = videoCover
+      ? `<div class="cover-wrap"><img src="${videoCover}" alt="Videos" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"></div>
+         <div class="album-card-overlay">
+           <div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">🎬 Videos</div>
+           <div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${VIDEO_ITEMS.length} video${VIDEO_ITEMS.length!==1?'s':''}</div>
+         </div>`
+      : `<div class="album-card-placeholder">🎬</div>
+         <div class="album-card-overlay">
+           <div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">🎬 Videos</div>
+           <div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${VIDEO_ITEMS.length} video${VIDEO_ITEMS.length!==1?'s':''}</div>
+         </div>`;
+    videoCard.addEventListener('click', () => { if(!albumSelectMode) openVideoAlbum(); });
+    videoCard.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){e.preventDefault();if(!albumSelectMode)openVideoAlbum();} });
+    pinnedGrid.appendChild(videoCard);
+  }
   const starredPhotos=data.photos.filter(p=>starredIds.has(String(p.added)));
   if(starredPhotos.length&&(!query||'starred'.includes(query))){
     const sCover=starredPhotos.slice().sort((a,b)=>b.added-a.added)[0].url;
