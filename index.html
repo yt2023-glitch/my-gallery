@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Forbidden Heaven</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Playfair+Display:wght@400;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://i.ibb.co">
+<link rel="dns-prefetch" href="https://i.ibb.co">
+<link rel="preconnect" href="https://img.lulucdn.com">
+<link rel="dns-prefetch" href="https://img.lulucdn.com">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{--bg:#0f0f0f;--surface:#1a1a1a;--surface2:#222;--border:#2e2e2e;--text:#e8e6e0;--muted:#888;--accent:#c8a96e;--accent2:#e8d5b0;--radius:10px;}
@@ -152,6 +156,21 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .album-check-item:hover{background:var(--surface2);}
 .album-check-item input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;}
 #album-home{padding:18px 40px;}
+#hero-slider-wrap{padding:20px 40px 4px;}
+#hero-slider{position:relative;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;user-select:none;}
+#hero-slider-track{position:relative;width:100%;height:100%;}
+.hero-card{position:absolute;top:50%;left:50%;aspect-ratio:9/16;border-radius:16px;overflow:hidden;background:var(--surface2);border:1px solid var(--border);box-shadow:0 14px 34px rgba(0,0,0,.55);cursor:pointer;transition:transform .7s cubic-bezier(.22,.85,.25,1),opacity .7s ease,filter .7s ease;will-change:transform,opacity;}
+.hero-card img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
+.hero-card.hero-center{cursor:default;box-shadow:0 20px 46px rgba(0,0,0,.65),0 0 0 2px var(--accent);}
+.hero-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);color:#fff;width:38px;height:38px;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:20;transition:background .2s,border-color .2s;}
+.hero-arrow:hover{background:var(--accent);color:#1a1200;border-color:var(--accent);}
+.hero-arrow-left{left:8px;}
+.hero-arrow-right{right:8px;}
+#hero-slider-empty{display:none;text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;}
+@media(max-width:600px){
+  #hero-slider-wrap{padding:14px 14px 2px;}
+  .hero-arrow{width:32px;height:32px;font-size:17px;}
+}
 #album-home-toolbar{padding:9px 40px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
 .album-home-grid{display:grid;gap:14px;}
 .album-home-grid.ags-sm{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));}
@@ -170,6 +189,21 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .album-card-checkbox{position:absolute;top:8px;left:8px;width:18px;height:18px;cursor:pointer;accent-color:var(--accent);display:none;z-index:2;}
 .album-select-mode .album-card-checkbox{display:block;}
 .album-card.album-selected{outline:2px solid var(--accent);outline-offset:-2px;}
+.album-category-badge{position:absolute;top:7px;left:7px;z-index:3;display:flex;align-items:center;gap:4px;padding:4px 10px 4px 8px;border-radius:999px;background:rgba(8,8,8,.78);backdrop-filter:blur(3px);box-shadow:0 2px 8px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.1);}
+.cat-badge-text{font-family:'Playfair Display',serif;font-weight:700;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:0.25px rgba(0,0,0,.35);animation:catShine 3.5s ease-in-out infinite;filter:drop-shadow(0 0 3px rgba(0,0,0,.5));}
+.cat-badge-actress .cat-badge-text{background-image:linear-gradient(100deg,#caa236 0%,#fff3c4 25%,#ffe27a 45%,#fffaf0 60%,#e8b923 80%,#caa236 100%);}
+.cat-badge-type .cat-badge-text{background-image:linear-gradient(100deg,#a9adb1 0%,#ffffff 25%,#e4e7ea 45%,#ffffff 60%,#c2c6ca 80%,#a9adb1 100%);}
+.cat-badge-random .cat-badge-text{background-image:linear-gradient(100deg,#b06b2f 0%,#ffcf9c 25%,#e8934a 45%,#ffe4bd 60%,#a8641f 80%,#b06b2f 100%);}
+.cat-badge-crown{font-size:12px;filter:drop-shadow(0 0 3px rgba(255,215,120,.85));animation:catCrownGleam 3.5s ease-in-out infinite;}
+@keyframes catShine{0%{background-position:0% center;}50%{background-position:100% center;}100%{background-position:0% center;}}
+@keyframes catCrownGleam{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-1px) scale(1.08);}}
+.cat-select-btn{font-size:12px;padding:6px 11px;}
+.cat-select-actress{border-color:#d4af37;color:#d4af37;}
+.cat-select-actress:hover{background:#d4af37;color:#1a1200;}
+.cat-select-type{border-color:#b9c0c6;color:#c9ced2;}
+.cat-select-type:hover{background:#b9c0c6;color:#1a1200;}
+.cat-select-random{border-color:#cd7f32;color:#cd7f32;}
+.cat-select-random:hover{background:#cd7f32;color:#1a1200;}
 #album-bulk-bar{display:none;position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--accent);padding:10px 40px;flex-direction:row;align-items:center;gap:10px;z-index:100;flex-wrap:wrap;}
 #album-bulk-bar.open{display:flex;}
 #zip-progress{display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--accent);color:var(--text);padding:10px 18px;border-radius:10px;font-size:12px;z-index:99999;min-width:220px;text-align:center;}
@@ -520,6 +554,16 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   </details>
 </div>
 
+<!-- HERO IMAGE SLIDER -->
+<div id="hero-slider-wrap" style="display:none;">
+  <div id="hero-slider">
+    <button class="hero-arrow hero-arrow-left" onclick="heroSliderNav(-1)" aria-label="Previous image">‹</button>
+    <div id="hero-slider-track"></div>
+    <button class="hero-arrow hero-arrow-right" onclick="heroSliderNav(1)" aria-label="Next image">›</button>
+  </div>
+  <div id="hero-slider-empty">No photos yet for the selected slider source — pick another source in ⚙ Settings.</div>
+</div>
+
 <!-- ALBUM HOME TOOLBAR -->
 <div id="album-home-toolbar" style="display:none;">
   <div class="search-wrap" style="flex:1;min-width:150px;">
@@ -531,6 +575,12 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     <option value="default">A → Z (grouped)</option>
     <option value="most">Most photos</option>
     <option value="least">Least photos</option>
+  </select>
+  <select class="field sort-select" id="album-category-filter" onchange="renderAlbumHome()">
+    <option value="all">All categories</option>
+    <option value="actress">👑 Actress</option>
+    <option value="type">Type</option>
+    <option value="random">Random</option>
   </select>
   <div class="grid-toggle">
     <button title="Small" onclick="setAlbumGridSize('sm')" id="ags-sm">⊟</button>
@@ -552,6 +602,9 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 <div id="album-bulk-bar">
   <span id="album-selected-count" style="font-size:13px;color:var(--muted);">0 selected</span>
   <button class="btn" onclick="selectAllAlbums()">Select All</button>
+  <button class="btn cat-select-btn cat-select-actress" onclick="selectCategoryAlbums('actress')">👑 Actress</button>
+  <button class="btn cat-select-btn cat-select-type" onclick="selectCategoryAlbums('type')">Type</button>
+  <button class="btn cat-select-btn cat-select-random" onclick="selectCategoryAlbums('random')">Random</button>
   <button class="btn primary" onclick="downloadSelectedAlbumsZip()">⬇ Download ZIP</button>
   <button class="btn" style="margin-left:auto;" onclick="toggleAlbumSelectMode()">Done</button>
 </div>
@@ -679,7 +732,12 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <div class="modal-box">
     <h3>Manage Albums</h3>
     <div class="row">
-      <input class="field" id="new-album-name" placeholder="New album name">
+      <input class="field" id="new-album-name" placeholder="New album name" onkeydown="if(event.key==='Enter')createAlbum()">
+      <select class="field" id="new-album-category" style="flex:0 0 auto;min-width:110px;">
+        <option value="actress">👑 Actress</option>
+        <option value="type">Type</option>
+        <option value="random" selected>Random</option>
+      </select>
       <button class="btn primary" onclick="createAlbum()" style="flex:0 0 auto;">Create</button>
     </div>
     <div id="album-list"></div>
@@ -808,6 +866,42 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 
     <hr class="settings-divider">
 
+    <!-- HERO SLIDER SOURCE SECTION -->
+    <div class="settings-section">
+      <div class="settings-label">Hero Slider Images</div>
+      <p style="font-size:11px;color:var(--muted);margin-top:-4px;">Choose where the random images on the home-screen slider are pulled from.</p>
+      <select class="field" id="hero-source-mode" onchange="onHeroSourceModeChange()">
+        <option value="category">By Category</option>
+        <option value="album">By Album</option>
+        <option value="all">All Photos</option>
+        <option value="multi">Multiple (custom mix)</option>
+      </select>
+      <div id="hero-source-category-wrap">
+        <select class="field" id="hero-source-category">
+          <option value="actress">👑 Actress</option>
+          <option value="type">Type</option>
+          <option value="random">Random</option>
+        </select>
+      </div>
+      <div id="hero-source-album-wrap" style="display:none;">
+        <select class="field" id="hero-source-album"></select>
+      </div>
+      <div id="hero-source-multi-wrap" style="display:none;flex-direction:column;gap:6px;max-height:170px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;"></div>
+    </div>
+
+    <hr class="settings-divider">
+
+    <!-- PHOTO LOADING SPEED / THUMBNAIL OPTIMIZATION -->
+    <div class="settings-section">
+      <div class="settings-label">Photo Loading Speed</div>
+      <p style="font-size:11px;color:var(--muted);margin-top:-4px;">Generates a small preview version of every photo that doesn't have one yet, so the grid and hero slider load much faster. Safe to run anytime — nothing is deleted, replaced, or re-hosted at a new address; this only saves a lightweight preview link alongside the original.</p>
+      <button class="btn" id="thumb-optimize-btn" onclick="startThumbOptimize()">🖼 Optimize Existing Photos</button>
+      <button class="btn danger" id="thumb-optimize-stop-btn" onclick="stopThumbOptimize()" style="display:none;">Stop</button>
+      <div id="thumb-optimize-status" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
+    </div>
+
+    <hr class="settings-divider">
+
     <div class="row" style="justify-content:flex-end;">
       <button class="btn" onclick="closeSettingsModal()">Cancel</button>
       <button class="btn primary" onclick="saveSettings()">Save Changes</button>
@@ -905,6 +999,7 @@ function openVideoAlbum() {
   currentAlbum = '__videos__';
   document.getElementById('album-home-toolbar').style.display = 'none';
   document.getElementById('album-home').style.display = 'none';
+  hideHeroSlider();
   const scroller = document.getElementById('az-scroller');
   if (scroller) scroller.classList.remove('visible');
   document.getElementById('photo-view-header').classList.add('visible');
@@ -1041,6 +1136,27 @@ let pendingFiles = [];
 let recycleBin = JSON.parse(localStorage.getItem('gallery_recycle')||'[]');
 let starredIds = new Set(JSON.parse(localStorage.getItem('gallery_starred')||'[]'));
 let albumCovers = JSON.parse(localStorage.getItem('gallery_covers')||'{}');
+let albumCategories = JSON.parse(localStorage.getItem('gallery_album_categories')||'{}');
+const ALBUM_CATEGORY_META = {
+  actress:{label:'Actress',icon:'👑'},
+  type:{label:'Type',icon:''},
+  random:{label:'Random',icon:''}
+};
+function getAlbumCategory(name){ return albumCategories[name]||'random'; }
+function saveAlbumCategories(){ localStorage.setItem('gallery_album_categories',JSON.stringify(albumCategories)); }
+
+// ── HERO SLIDER STATE ────────────────────────────────────────────────────
+let heroSliderSettings = JSON.parse(localStorage.getItem('gallery_hero_slider_settings') || JSON.stringify({
+  mode:'category', category:'actress', album:'', multiCategories:[], multiAlbums:[]
+}));
+function saveHeroSliderSettings(){ localStorage.setItem('gallery_hero_slider_settings',JSON.stringify(heroSliderSettings)); }
+let heroSliderPool = [];
+let heroSliderIndex = 0;
+let heroSliderTimer = null;
+let heroSliderPauseTimer = null;
+let heroSliderInitialized = false;
+let heroSliderDirty = false; // true when settings changed while slider was off-screen — forces a full rebuild next time it's shown
+let heroInitLock = false; // prevents overlapping rebuilds if init gets triggered twice in quick succession
 let albumCoverPositions = JSON.parse(localStorage.getItem('gallery_cover_positions')||'{}');
 let albumRotations = JSON.parse(localStorage.getItem('gallery_album_rotations')||'{}');
 const rotationMap = JSON.parse(localStorage.getItem('gallery_rotations')||'{}');
@@ -1178,6 +1294,7 @@ function goHome(){
   if(albumSelectMode) toggleAlbumSelectMode();
   document.getElementById('album-home-toolbar').style.display='flex';
   document.getElementById('album-home').style.display='';
+  showHeroSlider();
   document.getElementById('photo-view-header').classList.remove('visible');
   document.getElementById('sort-filter-bar').style.display='none';
   document.getElementById('gallery-wrap').style.display='none';
@@ -1195,6 +1312,7 @@ function openAlbumView(albumKey){
   currentAlbum=albumKey;
   document.getElementById('album-home-toolbar').style.display='none';
   document.getElementById('album-home').style.display='none';
+  hideHeroSlider();
   const scroller=document.getElementById('az-scroller');
   if(scroller) scroller.classList.remove('visible');
   document.getElementById('photo-view-header').classList.add('visible');
@@ -1230,11 +1348,257 @@ function clearAlbumSearch(){
   renderAlbumHome();
 }
 
+function makeCategoryBadge(cat){
+  const meta=ALBUM_CATEGORY_META[cat]||ALBUM_CATEGORY_META.random;
+  const crown=cat==='actress'?'<span class="cat-badge-crown">👑</span>':'';
+  return `<div class="album-category-badge cat-badge-${cat}">${crown}<span class="cat-badge-text">${meta.label}</span></div>`;
+}
+// Shared onerror fallback for thumbnails: retry once at full-size url, then
+// just tint the container instead of leaving a browser "broken image" icon.
+function thumbImgFallback(img,fullUrl){
+  if(img.dataset.fallback!=='1' && fullUrl && img.src!==fullUrl){
+    img.dataset.fallback='1'; img.src=fullUrl;
+  } else {
+    img.style.display='none';
+    if(img.parentElement) img.parentElement.style.background='var(--surface2)';
+  }
+}
+function shuffleArray(arr){
+  const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function getHeroSliderPhotos(){
+  const s=heroSliderSettings;
+  let pool=[];
+  if(s.mode==='all') pool=data.photos.slice();
+  else if(s.mode==='category') pool=data.photos.filter(p=>(p.albums||[]).some(a=>getAlbumCategory(a)===s.category));
+  else if(s.mode==='album') pool=s.album ? data.photos.filter(p=>(p.albums||[]).includes(s.album)) : [];
+  else if(s.mode==='multi'){
+    const cats=s.multiCategories||[], albs=s.multiAlbums||[];
+    if(cats.length || albs.length){
+      pool=data.photos.filter(p=>{
+        const pa=p.albums||[];
+        return pa.some(a=>albs.includes(a)) || pa.some(a=>cats.includes(getAlbumCategory(a)));
+      });
+    }
+  }
+  // Guard against entries with no usable image url — these were rendering as
+  // blank/broken cards in the slider instead of being skipped.
+  return pool.filter(p=>p && p.url);
+}
+function heroPhotoAt(offset){
+  const n=heroSliderPool.length;
+  if(!n) return null;
+  const idx=((heroSliderIndex+offset)%n+n)%n;
+  return heroSliderPool[idx];
+}
+// Visible cards span offsets -4..4 (4 per side + center). -5/+5 are invisible
+// "staging" buffers kept in the DOM so new cards can slide smoothly into view
+// instead of popping in — this is what makes the motion continuous.
+const HERO_VISIBLE_RANGE=4;
+const HERO_BUFFER_RANGE=5;
+let heroCardEls=[]; // {el, offset, photo}
+let heroCardW=140;
+function computeHeroMetrics(){
+  const slider=document.getElementById('hero-slider');
+  const containerW=(slider&&slider.clientWidth)||360;
+  const cardW=Math.min(190,Math.max(88,containerW*0.30));
+  const offsetStep=containerW/8.4;
+  const cardH=cardW*(16/9);
+  if(slider) slider.style.height=Math.round(cardH+20)+'px';
+  return {containerW,cardW,offsetStep,cardH};
+}
+function styleHeroCard(entry,metrics){
+  const {cardW,offsetStep}=metrics;
+  const off=entry.offset;
+  const abs=Math.abs(off);
+  const scale=Math.max(0.32,1-abs*0.13);
+  const opacity=Math.max(0,1-abs*0.2);
+  const tx=off*offsetStep;
+  const el=entry.el;
+  el.style.width=cardW+'px';
+  el.style.zIndex=String(30-abs);
+  el.style.opacity=String(opacity);
+  el.style.filter=off===0?'none':`brightness(${Math.max(0.55,1-abs*0.08).toFixed(2)})`;
+  el.style.transform=`translate(-50%,-50%) translateX(${tx}px) scale(${scale})`;
+  el.style.pointerEvents=abs>HERO_VISIBLE_RANGE?'none':'';
+  el.classList.toggle('hero-center',off===0);
+}
+function applyHeroStyles(){
+  const metrics=computeHeroMetrics();
+  heroCardW=metrics.cardW;
+  heroCardEls.forEach(entry=>styleHeroCard(entry,metrics));
+}
+function createHeroCardEntry(offset,metrics){
+  const photo=heroPhotoAt(offset);
+  if(!photo) return null;
+  const entry={offset,photo,el:null};
+  const el=document.createElement('div');
+  el.className='hero-card';
+  const abs=Math.abs(offset);
+  // Cards near the center are visible immediately, so load them eagerly and
+  // with priority; far-off cards (still in the DOM as scroll buffer) stay lazy.
+  const near=abs<=1;
+  const src=photo.thumbUrl||photo.url;
+  const img=document.createElement('img');
+  img.src=src;
+  img.alt=(photo.name||'').replace(/"/g,'');
+  img.loading=near?'eager':'lazy';
+  img.decoding='async';
+  if(near) img.setAttribute('fetchpriority','high');
+  // If the image fails (broken/expired link), don't leave a blank/broken card —
+  // fall back to the full-size url once, then just show the card's own background.
+  img.onerror=function(){ thumbImgFallback(this,photo.url); };
+  el.appendChild(img);
+  el.addEventListener('click',()=>{
+    if(entry.offset!==0){ shiftHeroCards(entry.offset); pauseThenResumeHeroAutoplay(); }
+  });
+  entry.el=el;
+  styleHeroCard(entry,metrics);
+  document.getElementById('hero-slider-track').appendChild(el);
+  return entry;
+}
+function initHeroSlider(){
+  if(heroInitLock) return; // avoid two overlapping rebuilds leaving stray/duplicate DOM
+  heroInitLock=true;
+  try{
+    const wrap=document.getElementById('hero-slider-wrap');
+    if(!wrap) return;
+    const slider=document.getElementById('hero-slider');
+    const track=document.getElementById('hero-slider-track');
+    const empty=document.getElementById('hero-slider-empty');
+    stopHeroAutoplay();
+    clearTimeout(heroSliderPauseTimer);
+    track.innerHTML='';
+    heroCardEls=[];
+    heroSliderDirty=false;
+    heroSliderPool=shuffleArray(getHeroSliderPhotos());
+    heroSliderIndex=0;
+    heroSliderInitialized=true;
+    if(!heroSliderPool.length){
+      slider.style.display='none'; empty.style.display='block';
+      return;
+    }
+    empty.style.display='none'; slider.style.display='flex';
+    const metrics=computeHeroMetrics();
+    heroCardW=metrics.cardW;
+    for(let off=-HERO_BUFFER_RANGE; off<=HERO_BUFFER_RANGE; off++){
+      const entry=createHeroCardEntry(off,metrics);
+      if(entry) heroCardEls.push(entry);
+    }
+    startHeroAutoplay();
+  } finally {
+    heroInitLock=false;
+  }
+}
+// Smoothly shifts every card by `steps` positions (steps=1 for autoplay/arrow tick,
+// can be a larger jump when a side card is clicked). Existing DOM elements are kept
+// and only their transform/opacity changes, so the browser animates the movement
+// instead of the cards jumping to new spots.
+function shiftHeroCards(steps){
+  if(!heroSliderPool.length || !steps) return;
+  const n=heroSliderPool.length;
+  heroSliderIndex=((heroSliderIndex+steps)%n+n)%n;
+  heroCardEls.forEach(entry=>{ entry.offset-=steps; });
+  heroCardEls=heroCardEls.filter(entry=>{
+    if(entry.offset<-HERO_BUFFER_RANGE||entry.offset>HERO_BUFFER_RANGE){ entry.el.remove(); return false; }
+    return true;
+  });
+  const metrics=computeHeroMetrics();
+  heroCardW=metrics.cardW;
+  const present=new Set(heroCardEls.map(e=>e.offset));
+  for(let off=-HERO_BUFFER_RANGE; off<=HERO_BUFFER_RANGE; off++){
+    if(!present.has(off)){
+      const entry=createHeroCardEntry(off,metrics);
+      if(entry) heroCardEls.push(entry);
+    }
+  }
+  // Force a reflow so the browser registers the just-created elements' starting
+  // position before we (re)apply the target transform on the ones that moved.
+  void document.getElementById('hero-slider-track').offsetHeight;
+  heroCardEls.forEach(entry=>styleHeroCard(entry,metrics));
+}
+function startHeroAutoplay(){
+  stopHeroAutoplay();
+  if(heroSliderPool.length<2) return;
+  heroSliderTimer=setInterval(()=>{ shiftHeroCards(1); },2000);
+}
+function stopHeroAutoplay(){ if(heroSliderTimer){clearInterval(heroSliderTimer); heroSliderTimer=null;} }
+function pauseThenResumeHeroAutoplay(){
+  stopHeroAutoplay();
+  clearTimeout(heroSliderPauseTimer);
+  heroSliderPauseTimer=setTimeout(()=>{ startHeroAutoplay(); },3000);
+}
+function heroSliderNav(dir){
+  if(!heroSliderPool.length) return;
+  shiftHeroCards(dir);
+  pauseThenResumeHeroAutoplay();
+}
+function showHeroSlider(){
+  const wrap=document.getElementById('hero-slider-wrap');
+  if(!wrap) return;
+  wrap.style.display='block';
+  // Rebuild if never initialized, or if settings changed while the slider was
+  // hidden (e.g. saved from inside an album view) — previously this branch was
+  // skipped whenever heroSliderInitialized was already true, so a settings change
+  // made off-screen never actually took effect and old/stale cards kept showing.
+  if(!heroSliderInitialized || heroSliderDirty) initHeroSlider();
+  else { applyHeroStyles(); startHeroAutoplay(); }
+}
+function hideHeroSlider(){
+  const wrap=document.getElementById('hero-slider-wrap');
+  if(!wrap) return;
+  wrap.style.display='none';
+  stopHeroAutoplay();
+  clearTimeout(heroSliderPauseTimer);
+}
+function heroSliderMaybeRefresh(){
+  const wrap=document.getElementById('hero-slider-wrap');
+  if(wrap && wrap.style.display!=='none') initHeroSlider();
+  else heroSliderDirty=true; // not visible right now — rebuild next time showHeroSlider() runs
+}
+let _heroResizeTimer=null;
+window.addEventListener('resize',()=>{
+  clearTimeout(_heroResizeTimer);
+  _heroResizeTimer=setTimeout(()=>{
+    const wrap=document.getElementById('hero-slider-wrap');
+    if(wrap && wrap.style.display!=='none' && heroCardEls.length) applyHeroStyles();
+  },150);
+});
+function populateHeroSourceControls(){
+  const s=heroSliderSettings;
+  document.getElementById('hero-source-mode').value=s.mode;
+  document.getElementById('hero-source-category').value=s.category||'actress';
+  const albumSel=document.getElementById('hero-source-album');
+  albumSel.innerHTML=data.albums.length
+    ? data.albums.map(a=>`<option value="${a}"${a===s.album?' selected':''}>${a}</option>`).join('')
+    : '<option value="">No albums yet</option>';
+  const multiWrap=document.getElementById('hero-source-multi-wrap');
+  const catRows=Object.keys(ALBUM_CATEGORY_META).map(c=>{
+    const meta=ALBUM_CATEGORY_META[c];
+    const checked=(s.multiCategories||[]).includes(c)?' checked':'';
+    return `<label class="album-check-item"><input type="checkbox" class="hero-multi-cat" value="${c}"${checked}><span>${meta.icon?meta.icon+' ':''}${meta.label} (category)</span></label>`;
+  }).join('');
+  const albumRows=data.albums.map(a=>{
+    const checked=(s.multiAlbums||[]).includes(a)?' checked':'';
+    return `<label class="album-check-item"><input type="checkbox" class="hero-multi-album" value="${a}"${checked}><span>${a}</span></label>`;
+  }).join('');
+  multiWrap.innerHTML=(catRows+albumRows)||'<span style="font-size:12px;color:var(--muted);">No albums yet.</span>';
+  onHeroSourceModeChange();
+}
+function onHeroSourceModeChange(){
+  const mode=document.getElementById('hero-source-mode').value;
+  document.getElementById('hero-source-category-wrap').style.display=mode==='category'?'block':'none';
+  document.getElementById('hero-source-album-wrap').style.display=mode==='album'?'block':'none';
+  document.getElementById('hero-source-multi-wrap').style.display=mode==='multi'?'flex':'none';
+}
 function renderAlbumHome(){
   const grid=document.getElementById('album-home-grid');
   grid.innerHTML='';
   const query=(document.getElementById('album-search')?.value||'').trim().toLowerCase();
   const sort=document.getElementById('album-sort')?.value||'default';
+  const catFilter=document.getElementById('album-category-filter')?.value||'all';
   const clearBtn=document.getElementById('album-search-clear');
   if(clearBtn) clearBtn.style.display=query?'block':'none';
 
@@ -1250,9 +1614,10 @@ function renderAlbumHome(){
     const pinBtn=isPinnable?`<button class="album-card-btn pin-btn${isPinned?' pinned':''}" title="${isPinned?'Unpin':'Pin'} album" onclick="event.stopPropagation();togglePinAlbum('${safeKey}',this)">📌</button>`:'';
     const actions=!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions">${pinBtn}<button class="album-card-btn" title="Adjust cover" onclick="event.stopPropagation();openCoverAdjust('${safeKey}')">✥</button><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${safeKey}')">⬇</button></div>`:'';
     const pinBadge=isPinned?`<div class="pin-badge">📌</div>`:'';
+    const catBadge=(!isSpecial&&data.albums.includes(key))?makeCategoryBadge(getAlbumCategory(key)):'';
     if(coverUrl){
       card.setAttribute('tabindex','0');
-      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy" style="opacity:0;"></div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}${pinBadge}`;
+      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy" style="opacity:0;"></div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}${pinBadge}${catBadge}`;
       const cardImg = card.querySelector('img');
       const applyAdjust = () => {
         const cardSize = card.getBoundingClientRect().width || card.offsetWidth || 0;
@@ -1281,7 +1646,7 @@ function renderAlbumHome(){
       else { cardImg.onload = applyAdjust; }
     } else {
       card.setAttribute('tabindex','0');
-      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}${pinBadge}`;
+      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}${pinBadge}${catBadge}`;
     }
     const cb=card.querySelector('.album-card-checkbox');
     if(cb) cb.addEventListener('change',()=>{
@@ -1312,10 +1677,10 @@ function renderAlbumHome(){
   const pinnedGrid=document.createElement('div');
   pinnedGrid.className=`az-section-grid ags-${albumGridSize}`;
 
-  if(!query||'all photos'.includes(query)) pinnedGrid.appendChild(makeCard('all','All Photos',data.photos.length,allCover,false));
+  if(catFilter==='all'&&(!query||'all photos'.includes(query))) pinnedGrid.appendChild(makeCard('all','All Photos',data.photos.length,allCover,false));
 
   // ── VIDEOS default album (always pinned, next to All Photos) ────────────
-  if(!query||'videos'.includes(query)||'video'.includes(query)){
+  if(catFilter==='all'&&(!query||'videos'.includes(query)||'video'.includes(query))){
     const videoCover = VIDEO_ITEMS.length ? VIDEO_ITEMS[0].thumb : null;
     const videoCard = document.createElement('div');
     videoCard.className = 'album-card';
@@ -1336,7 +1701,7 @@ function renderAlbumHome(){
     pinnedGrid.appendChild(videoCard);
   }
   const starredPhotos=data.photos.filter(p=>starredIds.has(String(p.added)));
-  if(starredPhotos.length&&(!query||'starred'.includes(query))){
+  if(catFilter==='all'&&starredPhotos.length&&(!query||'starred'.includes(query))){
     const sCover=starredPhotos.slice().sort((a,b)=>b.added-a.added)[0].url;
     pinnedGrid.appendChild(makeCard('starred','⭐ Starred',starredPhotos.length,sCover,false));
   }
@@ -1344,7 +1709,7 @@ function renderAlbumHome(){
   const orderedPinned = [
     ...pinnedOrder.filter(a=>pinnedAlbums.has(a)&&data.albums.includes(a)),
     ...[...pinnedAlbums].filter(a=>!pinnedOrder.includes(a)&&data.albums.includes(a))
-  ].filter(a=>!query||a.toLowerCase().includes(query));
+  ].filter(a=>(!query||a.toLowerCase().includes(query))&&(catFilter==='all'||getAlbumCategory(a)===catFilter));
   orderedPinned.forEach(a=>{ const cover=albumCovers[a]||null; const card=makeCard(a,a,counts[a]||0,cover,true); card.dataset.pinnedKey=a; card.setAttribute('draggable','true'); pinnedGrid.appendChild(card); });
   // Drag-to-reorder within pinned grid
   _initPinnedDrag(pinnedGrid);
@@ -1354,7 +1719,7 @@ function renderAlbumHome(){
   grid.appendChild(pinnedSection);
 
   // ── Non-pinned user albums ───────────────────────────────────────────────
-  const unpinnedAlbums=data.albums.filter(a=>!pinnedAlbums.has(a)&&(!query||a.toLowerCase().includes(query)));
+  const unpinnedAlbums=data.albums.filter(a=>!pinnedAlbums.has(a)&&(!query||a.toLowerCase().includes(query))&&(catFilter==='all'||getAlbumCategory(a)===catFilter));
 
   // ── NON-DEFAULT SORTS: flat grid (no grouping) ───────────────────────────
   if(sort==='most'||sort==='least'){
@@ -1508,29 +1873,46 @@ function renderAlbumList(){
   list.innerHTML=data.albums.length?'':'<p style="color:var(--muted);font-size:12px">No albums yet.</p>';
   data.albums.forEach((a,i)=>{
     const cover=albumCovers[a]?`<img class="album-cover" src="${albumCovers[a]}" alt="">`:'<span style="width:34px;height:34px;background:var(--surface2);border-radius:5px;display:inline-block;flex-shrink:0;"></span>';
+    const cat=getAlbumCategory(a);
     const d=document.createElement('div'); d.className='album-list-item';
-    d.innerHTML=`${cover}<span style="flex:1;">${a}</span><button class="btn" style="padding:4px 8px;font-size:11px;" onclick="deleteAlbum(${i})">🗑</button>`;
+    d.innerHTML=`${cover}<span style="flex:1;">${a}</span>
+      <select class="field" style="flex:0 0 auto;min-width:100px;padding:5px 8px;font-size:12px;" onchange="setAlbumCategory('${a.replace(/'/g,"\\'")}',this.value)">
+        <option value="actress"${cat==='actress'?' selected':''}>👑 Actress</option>
+        <option value="type"${cat==='type'?' selected':''}>Type</option>
+        <option value="random"${cat==='random'?' selected':''}>Random</option>
+      </select>
+      <button class="btn" style="padding:4px 8px;font-size:11px;" onclick="deleteAlbum(${i})">🗑</button>`;
     list.appendChild(d);
   });
 }
+function setAlbumCategory(name,cat){
+  albumCategories[name]=cat;
+  saveAlbumCategories();
+  renderAlbumHome();
+  heroSliderMaybeRefresh();
+}
 function createAlbum(){
   const inp=document.getElementById('new-album-name');
+  const catSel=document.getElementById('new-album-category');
   const name=inp.value.trim();
   if(!name) return;
   if(data.albums.some(a=>a.toLowerCase()===name.toLowerCase())){
     showToast(`Album "${name}" already exists.`,true); return;
   }
   data.albums.push(name);
+  albumCategories[name]=catSel?catSel.value:'random';
   inp.value='';
-  saveAlbums(); renderTabs(); renderAlbumList(); renderAlbumHome();
+  saveAlbums(); saveAlbumCategories(); renderTabs(); renderAlbumList(); renderAlbumHome();
 }
 function deleteAlbum(i){
   const name=data.albums[i];
   if(!confirm(`Delete album "${name}"? Photos won't be deleted.`)) return;
   data.albums.splice(i,1);
   data.photos.forEach(p=>{if(p.albums) p.albums=p.albums.filter(a=>a!==name);});
+  delete albumCategories[name];
   if(currentAlbum===name) currentAlbum='all';
-  saveAlbums(); renderTabs(); renderAlbumList(); renderAlbumHome();
+  saveAlbums(); saveAlbumCategories(); renderTabs(); renderAlbumList(); renderAlbumHome();
+  heroSliderMaybeRefresh();
 }
 
 // ALBUM SELECT MODE
@@ -1554,6 +1936,17 @@ function selectAllAlbums(){
     cb.closest('.album-card').classList.add('album-selected');
   });
   updateAlbumSelectedCount();
+}
+function selectCategoryAlbums(cat){
+  const keys=data.albums.filter(a=>getAlbumCategory(a)===cat);
+  if(!keys.length){ showToast(`No albums in "${ALBUM_CATEGORY_META[cat].label}" category.`,true); return; }
+  keys.forEach(k=>{
+    selectedAlbums.add(k);
+    const cb=document.querySelector(`.album-card-checkbox[data-key="${CSS.escape(k)}"]`);
+    if(cb){ cb.checked=true; cb.closest('.album-card').classList.add('album-selected'); }
+  });
+  updateAlbumSelectedCount();
+  showToast(`${keys.length} "${ALBUM_CATEGORY_META[cat].label}" album${keys.length>1?'s':''} selected`);
 }
 
 // ZIP HELPERS
@@ -2111,7 +2504,7 @@ function renderRecycleBin(){
   const grid=document.createElement('div'); grid.className='recycle-grid';
   recycleBin.forEach((p,i)=>{
     const wrap=document.createElement('div');
-    wrap.innerHTML=`<div class="recycle-thumb"><img src="${p.url}" alt="${p.name}" loading="lazy"></div><div class="recycle-thumb-name">${p.name}</div><div class="recycle-actions"><button class="btn" style="font-size:10px;padding:3px 6px;" onclick="restorePhoto(${i})">↩</button><button class="btn danger" style="font-size:10px;padding:3px 6px;" onclick="deleteForever(${i})">✕</button></div>`;
+    wrap.innerHTML=`<div class="recycle-thumb"><img src="${p.thumbUrl||p.url}" alt="${p.name}" loading="lazy" decoding="async" onerror="thumbImgFallback(this,'${p.url.replace(/'/g,"\\'")}')"></div><div class="recycle-thumb-name">${p.name}</div><div class="recycle-actions"><button class="btn" style="font-size:10px;padding:3px 6px;" onclick="restorePhoto(${i})">↩</button><button class="btn danger" style="font-size:10px;padding:3px 6px;" onclick="deleteForever(${i})">✕</button></div>`;
     grid.appendChild(wrap);
   });
   el.innerHTML=''; el.appendChild(grid);
@@ -2201,9 +2594,10 @@ function renderGrid(){
     div.className=`thumb${isStarred?' starred':''}${isSelected?' selected':''}${selectMode?' select-mode':''}`;
     div.setAttribute('tabindex','0');
     const pJson=JSON.stringify({url:p.url,album:p.album}).replace(/"/g,'&quot;');
+    const gridSrc=p.thumbUrl||p.url;
     div.innerHTML=`
       <div class="thumb-inner">
-        <img src="${p.url}" alt="${p.name}" loading="lazy" onerror="this.parentElement.parentElement.style.background='var(--surface2)'">
+        <img src="${gridSrc}" alt="${p.name}" loading="lazy" decoding="async" onerror="thumbImgFallback(this,'${p.url.replace(/'/g,"\\'")}')">
         <div class="thumb-overlay"><span class="thumb-name">${dn}</span></div>
       </div>
       <input type="checkbox" class="thumb-checkbox" ${isSelected?'checked':''} onclick="event.stopPropagation();toggleSelect('${p.added}')">
@@ -2728,9 +3122,12 @@ async function uploadAllToImgBB(){
         const json=await res.json();
         if(!json.success) throw new Error(json.error?.message||json.status_txt||JSON.stringify(json));
         const url=json.data.url;
+        // ImgBB also returns smaller pre-resized versions — use those for grid/hero
+        // thumbnails instead of downloading the full-resolution original every time.
+        const thumbUrl=(json.data.medium&&json.data.medium.url)||(json.data.thumb&&json.data.thumb.url)||url;
         const added=baseTs+i;
         const hash=item.hash||null;
-        const photo={url,name,albums,album:albums[0]||'',added};
+        const photo={url,thumbUrl,name,albums,album:albums[0]||'',added};
         if(hash){ photoHashes[String(added)]=hash; saveHashes(); }
         existingUrls.add(url); // prevent re-upload in same session
         await apiPost({action:'add',...photo,albums});
@@ -2764,6 +3161,7 @@ async function uploadAllToImgBB(){
     renderGrid();
     setTimeout(()=>{cancelUpload();document.getElementById('add-panel').classList.remove('open');showToast(`${uploaded.length} photo${uploaded.length>1?'s':''} added ✓`);},1800);
   }
+  heroSliderMaybeRefresh();
 }
 function fileToBase64(file){
   return new Promise((resolve,reject)=>{
@@ -2786,6 +3184,7 @@ async function addPhotoByUrl(){
   await apiPost({action:'add',...photo,albums}); data.photos.push(photo);
   document.getElementById('inp-url').value=''; document.getElementById('inp-url-name').value='';
   showToast('Photo added! ✓'); renderGrid();
+  heroSliderMaybeRefresh();
 }
 function toggleAddPanel(){document.getElementById('add-panel').classList.toggle('open');}
 
@@ -2805,6 +3204,7 @@ function openSettingsModal() {
     preview.classList.remove('visible');
     removeBtn.style.display = 'none';
   }
+  populateHeroSourceControls();
   document.getElementById('settings-modal').classList.add('open');
 }
 function closeSettingsModal() {
@@ -2844,6 +3244,79 @@ function removeLogo() {
   document.getElementById('remove-logo-btn').style.display = 'none';
   document.getElementById('logo-file').value = '';
 }
+// ── THUMBNAIL OPTIMIZER ──────────────────────────────────────────────────
+// Backfills a small `thumbUrl` for photos uploaded before this feature existed
+// (their `url` is still the only thing they have, so grid/hero cards currently
+// load the full-resolution original). Re-hosts a copy through ImgBB purely to
+// get back its auto-generated small preview link, then patches just that one
+// field onto the existing row via the backend's 'thumbUrl' action — the
+// original `url`/`added` id, albums, star, and cover data are never touched.
+let _thumbOptimizeRunning = false;
+let _thumbOptimizeCancel = false;
+function setThumbOptimizeStatus(msg){
+  const el = document.getElementById('thumb-optimize-status');
+  if (el) el.textContent = msg;
+}
+async function startThumbOptimize(){
+  if (_thumbOptimizeRunning) return;
+  const targets = data.photos.filter(p => p.url && !p.thumbUrl);
+  if (!targets.length){
+    setThumbOptimizeStatus('All photos already have a fast preview ✓');
+    return;
+  }
+  if (!confirm(`Generate fast previews for ${targets.length} photo${targets.length!==1?'s':''}? This can take a while and runs one photo at a time — you can leave Settings open or come back later; anything already done is saved.`)) return;
+
+  _thumbOptimizeRunning = true;
+  _thumbOptimizeCancel = false;
+  document.getElementById('thumb-optimize-btn').style.display = 'none';
+  document.getElementById('thumb-optimize-stop-btn').style.display = '';
+  let done = 0, failed = 0;
+  const total = targets.length;
+
+  for (const photo of targets){
+    if (_thumbOptimizeCancel) break;
+    done++;
+    setThumbOptimizeStatus(`Optimizing ${done} / ${total}… (${failed} skipped)`);
+    let success = false;
+    for (let attempt = 0; attempt < 2 && !success; attempt++){
+      try{
+        if (attempt > 0) await new Promise(r => setTimeout(r, 1500));
+        const imgRes = await fetch(photo.url);
+        if (!imgRes.ok) throw new Error('fetch failed');
+        const blob = await imgRes.blob();
+        const fd = new FormData();
+        fd.append('image', blob, (photo.name || 'photo') + '.jpg');
+        const upRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: 'POST', body: fd });
+        if (!upRes.ok) throw new Error(`HTTP ${upRes.status}`);
+        const json = await upRes.json();
+        if (!json.success) throw new Error(json.error?.message || 'upload failed');
+        const thumbUrl = (json.data.medium && json.data.medium.url) || (json.data.thumb && json.data.thumb.url) || null;
+        if (thumbUrl){
+          photo.thumbUrl = thumbUrl;
+          await apiPost({ action: 'thumbUrl', added: photo.added, thumbUrl });
+        }
+        success = true;
+      } catch(e){ /* retry once, then give up on this photo */ }
+    }
+    if (!success) failed++;
+    // brief pause between photos so we don't trip ImgBB's rate limit
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  _thumbOptimizeRunning = false;
+  document.getElementById('thumb-optimize-btn').style.display = '';
+  document.getElementById('thumb-optimize-stop-btn').style.display = 'none';
+  setThumbOptimizeStatus(_thumbOptimizeCancel
+    ? `Stopped after ${done}/${total} (${failed} skipped). Run again anytime to pick up where you left off.`
+    : `Done — optimized ${done - failed}/${total}${failed ? `, ${failed} skipped (couldn't fetch/upload)` : ''}.`);
+
+  // Refresh whatever's currently visible so the speed-up applies right away
+  if (document.getElementById('gallery-wrap').style.display !== 'none') renderGrid();
+  if (document.getElementById('album-home').style.display !== 'none') renderAlbumHome();
+  heroSliderMaybeRefresh();
+}
+function stopThumbOptimize(){ _thumbOptimizeCancel = true; }
+
 async function saveSettings() {
   const title = document.getElementById('set-title').value.trim() || 'Forbidden Heaven';
   const tagline = document.getElementById('set-tagline').value.trim();
@@ -2853,6 +3326,17 @@ async function saveSettings() {
   siteSettings = { title, tagline, pwTitle, logoDataUrl };
   saveSettings_toStorage();
   applyBranding();
+
+  // Hero slider source settings
+  const heroMode=document.getElementById('hero-source-mode').value;
+  const heroCategory=document.getElementById('hero-source-category').value;
+  const heroAlbum=document.getElementById('hero-source-album').value;
+  const heroMultiCategories=[...document.querySelectorAll('.hero-multi-cat:checked')].map(el=>el.value);
+  const heroMultiAlbums=[...document.querySelectorAll('.hero-multi-album:checked')].map(el=>el.value);
+  heroSliderSettings={mode:heroMode,category:heroCategory,album:heroAlbum,multiCategories:heroMultiCategories,multiAlbums:heroMultiAlbums};
+  saveHeroSliderSettings();
+  heroSliderMaybeRefresh();
+
   closeSettingsModal();
   showToast('Saving settings…');
   await apiPost({ action: 'settings', settings: siteSettings });
