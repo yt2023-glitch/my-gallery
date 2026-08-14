@@ -579,8 +579,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <select class="field sort-select" id="album-category-filter" onchange="renderAlbumHome()">
     <option value="all">All categories</option>
     <option value="actress">👑 Actress</option>
-    <option value="type">Type</option>
-    <option value="random">Random</option>
+    <option value="type">Body Part</option>
+    <option value="random">Thevidiyas</option>
   </select>
   <div class="grid-toggle">
     <button title="Small" onclick="setAlbumGridSize('sm')" id="ags-sm">⊟</button>
@@ -603,8 +603,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <span id="album-selected-count" style="font-size:13px;color:var(--muted);">0 selected</span>
   <button class="btn" onclick="selectAllAlbums()">Select All</button>
   <button class="btn cat-select-btn cat-select-actress" onclick="selectCategoryAlbums('actress')">👑 Actress</button>
-  <button class="btn cat-select-btn cat-select-type" onclick="selectCategoryAlbums('type')">Type</button>
-  <button class="btn cat-select-btn cat-select-random" onclick="selectCategoryAlbums('random')">Random</button>
+  <button class="btn cat-select-btn cat-select-type" onclick="selectCategoryAlbums('type')">Body Part</button>
+  <button class="btn cat-select-btn cat-select-random" onclick="selectCategoryAlbums('random')">Thevidiyas</button>
   <button class="btn primary" onclick="downloadSelectedAlbumsZip()">⬇ Download ZIP</button>
   <button class="btn" style="margin-left:auto;" onclick="toggleAlbumSelectMode()">Done</button>
 </div>
@@ -735,8 +735,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
       <input class="field" id="new-album-name" placeholder="New album name" onkeydown="if(event.key==='Enter')createAlbum()">
       <select class="field" id="new-album-category" style="flex:0 0 auto;min-width:110px;">
         <option value="actress">👑 Actress</option>
-        <option value="type">Type</option>
-        <option value="random" selected>Random</option>
+        <option value="type">Body Part</option>
+        <option value="random" selected>Thevidiyas</option>
       </select>
       <button class="btn primary" onclick="createAlbum()" style="flex:0 0 auto;">Create</button>
     </div>
@@ -879,8 +879,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
       <div id="hero-source-category-wrap">
         <select class="field" id="hero-source-category">
           <option value="actress">👑 Actress</option>
-          <option value="type">Type</option>
-          <option value="random">Random</option>
+          <option value="type">Body Part</option>
+          <option value="random">Thevidiyas</option>
         </select>
       </div>
       <div id="hero-source-album-wrap" style="display:none;">
@@ -1878,8 +1878,8 @@ function renderAlbumList(){
     d.innerHTML=`${cover}<span style="flex:1;">${a}</span>
       <select class="field" style="flex:0 0 auto;min-width:100px;padding:5px 8px;font-size:12px;" onchange="setAlbumCategory('${a.replace(/'/g,"\\'")}',this.value)">
         <option value="actress"${cat==='actress'?' selected':''}>👑 Actress</option>
-        <option value="type"${cat==='type'?' selected':''}>Type</option>
-        <option value="random"${cat==='random'?' selected':''}>Random</option>
+        <option value="type"${cat==='type'?' selected':''}>Body Part</option>
+        <option value="random"${cat==='random'?' selected':''}>Thevidiyas</option>
       </select>
       <button class="btn" style="padding:4px 8px;font-size:11px;" onclick="deleteAlbum(${i})">🗑</button>`;
     list.appendChild(d);
