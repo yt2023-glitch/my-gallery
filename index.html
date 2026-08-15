@@ -898,9 +898,14 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     <div class="settings-section">
       <div class="settings-label">Photo Loading Speed</div>
       <p style="font-size:11px;color:var(--muted);margin-top:-4px;">Generates a small preview version of every photo that doesn't have one yet, so the grid and hero slider load much faster. Safe to run anytime — nothing is deleted, replaced, or re-hosted at a new address; this only saves a lightweight preview link alongside the original.</p>
-      <button class="btn" id="thumb-optimize-btn" onclick="startThumbOptimize()">🖼 Optimize Existing Photos</button>
+      <button class="btn" id="thumb-optimize-btn" onclick="startThumbOptimize()">🖼 Optimize Existing Photos (keep this tab open)</button>
       <button class="btn danger" id="thumb-optimize-stop-btn" onclick="stopThumbOptimize()" style="display:none;">Stop</button>
       <div id="thumb-optimize-status" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
+
+      <p style="font-size:11px;color:var(--muted);margin-top:14px;">Or run it on Google's servers instead — start it, then close the site or turn off your device. It keeps going in the background and picks up automatically if interrupted.</p>
+      <button class="btn" id="overnight-optimize-btn" onclick="startOvernightOptimize()">🌙 Start Overnight Optimize (runs even if closed)</button>
+      <button class="btn danger" id="overnight-optimize-stop-btn" onclick="stopOvernightOptimize()" style="display:none;">Stop</button>
+      <div id="overnight-optimize-status" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
     </div>
 
     <hr class="settings-divider">
@@ -1285,6 +1290,7 @@ async function apiGet() {
         } catch(e) {}
       }
     }
+    if (json.optimizeStatus) { optimizeStatus = json.optimizeStatus; renderOvernightOptimizeUI(); }
     // Load pinned order from sheet (overrides localStorage — source of truth)
     if (Array.isArray(json.pinnedOrder) && json.pinnedOrder.length > 0) {
       pinnedOrder = json.pinnedOrder;
@@ -3287,11 +3293,15 @@ function openSettingsModal() {
     removeBtn.style.display = 'none';
   }
   populateHeroSourceControls();
+  renderOvernightOptimizeUI();
+  if (optimizeStatus.running) startOvernightStatusPolling();
+  fetchOptimizeStatus();
   document.getElementById('settings-modal').classList.add('open');
 }
 function closeSettingsModal() {
   document.getElementById('settings-modal').classList.remove('open');
   document.getElementById('logo-file').value = '';
+  stopOvernightStatusPolling();
 }
 function handleLogoUpload(file) {
   if (!file || !file.type.startsWith('image/')) { showToast('Please select an image file.', true); return; }
@@ -3398,6 +3408,71 @@ async function startThumbOptimize(){
   heroSliderMaybeRefresh();
 }
 function stopThumbOptimize(){ _thumbOptimizeCancel = true; }
+
+// ══════════════════════════════════════════════════════════════════════════
+// OVERNIGHT (SERVER-SIDE) OPTIMIZE — runs via an Apps Script trigger, so it
+// keeps working even after this tab/device is closed. This site only starts
+// it, polls its status, and can stop it — the actual work happens server-side.
+// ══════════════════════════════════════════════════════════════════════════
+let optimizeStatus = { running:false, total:0, done:0, failed:0, startedAt:null, updatedAt:null, finishedAt:null };
+let _overnightPollTimer = null;
+
+function renderOvernightOptimizeUI(){
+  const startBtn = document.getElementById('overnight-optimize-btn');
+  const stopBtn = document.getElementById('overnight-optimize-stop-btn');
+  const statusEl = document.getElementById('overnight-optimize-status');
+  if (!startBtn || !stopBtn || !statusEl) return;
+  const s = optimizeStatus;
+  if (s.running) {
+    startBtn.style.display = 'none';
+    stopBtn.style.display = '';
+    const ago = s.updatedAt ? Math.max(0, Math.round((Date.now()-s.updatedAt)/1000)) : null;
+    statusEl.textContent = `Running on Google's servers — ${s.done}/${s.total} done${s.failed?`, ${s.failed} skipped`:''}. Safe to close this site.${ago!=null?` (last update ${ago}s ago)`:''}`;
+  } else {
+    startBtn.style.display = '';
+    stopBtn.style.display = 'none';
+    if (s.finishedAt && s.total) {
+      statusEl.textContent = `Done — optimized ${s.done}/${s.total}${s.failed?`, ${s.failed} skipped`:''}.`;
+    } else if (s.total === 0 && s.finishedAt) {
+      statusEl.textContent = `All photos already have a fast preview ✓`;
+    } else {
+      statusEl.textContent = '';
+    }
+  }
+}
+async function fetchOptimizeStatus(){
+  try {
+    const res = await fetch(`${API}?action=status`);
+    const json = await res.json();
+    if (json.optimizeStatus) { optimizeStatus = json.optimizeStatus; renderOvernightOptimizeUI(); }
+  } catch(e) { /* silent — will retry on next poll */ }
+}
+function startOvernightStatusPolling(){
+  stopOvernightStatusPolling();
+  _overnightPollTimer = setInterval(() => {
+    fetchOptimizeStatus();
+    if (!optimizeStatus.running) stopOvernightStatusPolling();
+  }, 15000);
+}
+function stopOvernightStatusPolling(){
+  if (_overnightPollTimer) { clearInterval(_overnightPollTimer); _overnightPollTimer = null; }
+}
+async function startOvernightOptimize(){
+  const targets = data.photos.filter(p => p.url && !p.thumbUrl).length;
+  if (!targets) { document.getElementById('overnight-optimize-status').textContent = 'All photos already have a fast preview ✓'; return; }
+  if (!confirm(`Start the overnight optimizer for ${targets} photo${targets!==1?'s':''}? This runs on Google's servers — you can close this site or turn off your device once it starts. It checks in every few minutes and may take a while for 1000+ photos; progress is saved as it goes.`)) return;
+  await apiPost({ action:'startOptimize' });
+  document.getElementById('overnight-optimize-status').textContent = 'Starting… the first batch runs within about 5 minutes.';
+  optimizeStatus = { running:true, total:targets, done:0, failed:0, startedAt:Date.now(), updatedAt:Date.now(), finishedAt:null };
+  renderOvernightOptimizeUI();
+  startOvernightStatusPolling();
+}
+async function stopOvernightOptimize(){
+  if (!confirm('Stop the overnight optimizer? Photos already optimized stay saved — you can resume anytime.')) return;
+  await apiPost({ action:'stopOptimize' });
+  stopOvernightStatusPolling();
+  await fetchOptimizeStatus();
+}
 
 async function saveSettings() {
   const title = document.getElementById('set-title').value.trim() || 'Forbidden Heaven';
