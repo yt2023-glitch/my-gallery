@@ -160,7 +160,10 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 #hero-slider{position:relative;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;user-select:none;}
 #hero-slider-track{position:relative;width:100%;height:100%;}
 .hero-card{position:absolute;top:50%;left:50%;aspect-ratio:9/16;border-radius:16px;overflow:hidden;background:var(--surface2);border:1px solid var(--border);box-shadow:0 14px 34px rgba(0,0,0,.55);cursor:pointer;transition:transform .7s cubic-bezier(.22,.85,.25,1),opacity .7s ease,filter .7s ease;will-change:transform,opacity;}
-.hero-card img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
+.hero-card img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;opacity:0;transition:opacity .35s ease;}
+.hero-card img.hero-img-ready{opacity:1;}
+.hero-card.hero-card-loading{background:linear-gradient(100deg,var(--surface2) 40%,#2a2a2a 50%,var(--surface2) 60%);background-size:250% 100%;animation:heroShimmer 1.4s ease-in-out infinite;}
+@keyframes heroShimmer{0%{background-position:200% 0;}100%{background-position:-50% 0;}}
 .hero-card.hero-center{cursor:default;box-shadow:0 20px 46px rgba(0,0,0,.65),0 0 0 2px var(--accent);}
 .hero-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);color:#fff;width:38px;height:38px;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:20;transition:background .2s,border-color .2s;}
 .hero-arrow:hover{background:var(--accent);color:#1a1200;border-color:var(--accent);}
@@ -579,8 +582,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <select class="field sort-select" id="album-category-filter" onchange="renderAlbumHome()">
     <option value="all">All categories</option>
     <option value="actress">👑 Actress</option>
-    <option value="type">Body Part</option>
-    <option value="random">Thevidiyas</option>
+    <option value="type">Type</option>
+    <option value="random">Random</option>
   </select>
   <div class="grid-toggle">
     <button title="Small" onclick="setAlbumGridSize('sm')" id="ags-sm">⊟</button>
@@ -603,8 +606,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <span id="album-selected-count" style="font-size:13px;color:var(--muted);">0 selected</span>
   <button class="btn" onclick="selectAllAlbums()">Select All</button>
   <button class="btn cat-select-btn cat-select-actress" onclick="selectCategoryAlbums('actress')">👑 Actress</button>
-  <button class="btn cat-select-btn cat-select-type" onclick="selectCategoryAlbums('type')">Body Part</button>
-  <button class="btn cat-select-btn cat-select-random" onclick="selectCategoryAlbums('random')">Thevidiyas</button>
+  <button class="btn cat-select-btn cat-select-type" onclick="selectCategoryAlbums('type')">Type</button>
+  <button class="btn cat-select-btn cat-select-random" onclick="selectCategoryAlbums('random')">Random</button>
   <button class="btn primary" onclick="downloadSelectedAlbumsZip()">⬇ Download ZIP</button>
   <button class="btn" style="margin-left:auto;" onclick="toggleAlbumSelectMode()">Done</button>
 </div>
@@ -735,8 +738,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
       <input class="field" id="new-album-name" placeholder="New album name" onkeydown="if(event.key==='Enter')createAlbum()">
       <select class="field" id="new-album-category" style="flex:0 0 auto;min-width:110px;">
         <option value="actress">👑 Actress</option>
-        <option value="type">Body Part</option>
-        <option value="random" selected>Thevidiyas</option>
+        <option value="type">Type</option>
+        <option value="random" selected>Random</option>
       </select>
       <button class="btn primary" onclick="createAlbum()" style="flex:0 0 auto;">Create</button>
     </div>
@@ -879,8 +882,8 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
       <div id="hero-source-category-wrap">
         <select class="field" id="hero-source-category">
           <option value="actress">👑 Actress</option>
-          <option value="type">Body Part</option>
-          <option value="random">Thevidiyas</option>
+          <option value="type">Type</option>
+          <option value="random">Random</option>
         </select>
       </div>
       <div id="hero-source-album-wrap" style="display:none;">
@@ -1143,13 +1146,23 @@ const ALBUM_CATEGORY_META = {
   random:{label:'Random',icon:''}
 };
 function getAlbumCategory(name){ return albumCategories[name]||'random'; }
-function saveAlbumCategories(){ localStorage.setItem('gallery_album_categories',JSON.stringify(albumCategories)); }
+// Saves locally AND syncs to the Settings sheet so the category assignment is
+// permanent across every device — same pattern as pinnedOrder/site settings.
+function saveAlbumCategories(){
+  localStorage.setItem('gallery_album_categories',JSON.stringify(albumCategories));
+  apiPost({ action:'settings', settings:{ albumCategories: JSON.stringify(albumCategories) } });
+}
 
 // ── HERO SLIDER STATE ────────────────────────────────────────────────────
 let heroSliderSettings = JSON.parse(localStorage.getItem('gallery_hero_slider_settings') || JSON.stringify({
   mode:'category', category:'actress', album:'', multiCategories:[], multiAlbums:[]
 }));
-function saveHeroSliderSettings(){ localStorage.setItem('gallery_hero_slider_settings',JSON.stringify(heroSliderSettings)); }
+// Saves locally AND syncs to the Settings sheet so the hero slider source
+// configuration is permanent across every device.
+function saveHeroSliderSettings(){
+  localStorage.setItem('gallery_hero_slider_settings',JSON.stringify(heroSliderSettings));
+  apiPost({ action:'settings', settings:{ heroSliderSettings: JSON.stringify(heroSliderSettings) } });
+}
 let heroSliderPool = [];
 let heroSliderIndex = 0;
 let heroSliderTimer = null;
@@ -1256,6 +1269,21 @@ async function apiGet() {
       };
       saveSettings_toStorage();
       applyBranding();
+      // Album categories — sheet is source of truth, overrides localStorage
+      if (json.settings.albumCategories) {
+        try {
+          albumCategories = JSON.parse(json.settings.albumCategories);
+          localStorage.setItem('gallery_album_categories', JSON.stringify(albumCategories));
+        } catch(e) {}
+      }
+      // Hero slider source config — sheet is source of truth, overrides localStorage
+      if (json.settings.heroSliderSettings) {
+        try {
+          heroSliderSettings = JSON.parse(json.settings.heroSliderSettings);
+          localStorage.setItem('gallery_hero_slider_settings', JSON.stringify(heroSliderSettings));
+          heroSliderMaybeRefresh();
+        } catch(e) {}
+      }
     }
     // Load pinned order from sheet (overrides localStorage — source of truth)
     if (Array.isArray(json.pinnedOrder) && json.pinnedOrder.length > 0) {
@@ -1363,6 +1391,33 @@ function thumbImgFallback(img,fullUrl){
     if(img.parentElement) img.parentElement.style.background='var(--surface2)';
   }
 }
+// ── HERO SLIDER IMAGE LOAD QUEUE ─────────────────────────────────────────
+// Caps how many off-screen "buffer" thumbnails download at once. Without
+// this, every autoplay tick adds a brand-new request on top of whatever's
+// still in flight, and on a slow connection the "still downloading, invisible"
+// pile grows faster than the "finished, visible" pile until cards go blank.
+// The center/near cards (what's actually on screen) always bypass this queue
+// and load immediately — only the not-yet-visible buffer cards get throttled.
+const HERO_MAX_CONCURRENT_LOADS=3;
+let heroActiveLoads=0;
+let heroLoadQueue=[]; // [{img, src, priority}] — lower priority number = loads sooner
+function heroQueueImageLoad(img,src,priority){
+  heroLoadQueue=heroLoadQueue.filter(q=>q.img!==img);
+  heroLoadQueue.push({img,src,priority});
+  heroLoadQueue.sort((a,b)=>a.priority-b.priority);
+  heroPumpImageQueue();
+}
+function heroPumpImageQueue(){
+  while(heroActiveLoads<HERO_MAX_CONCURRENT_LOADS && heroLoadQueue.length){
+    const next=heroLoadQueue.shift();
+    if(!next.img.isConnected) continue; // card was removed while waiting — skip it, don't waste a slot
+    heroActiveLoads++;
+    const release=()=>{ heroActiveLoads=Math.max(0,heroActiveLoads-1); heroPumpImageQueue(); };
+    next.img.addEventListener('load',release,{once:true});
+    next.img.addEventListener('error',release,{once:true});
+    next.img.src=next.src;
+  }
+}
 function shuffleArray(arr){
   const a=arr.slice();
   for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
@@ -1437,20 +1492,28 @@ function createHeroCardEntry(offset,metrics){
   const el=document.createElement('div');
   el.className='hero-card';
   const abs=Math.abs(offset);
-  // Cards near the center are visible immediately, so load them eagerly and
-  // with priority; far-off cards (still in the DOM as scroll buffer) stay lazy.
+  // Cards near the center are visible immediately, so they load right away and
+  // with priority. Far-off cards (still in the DOM only as scroll buffer) are
+  // throttled through the load queue so they can't pile up and choke the ones
+  // that actually matter right now.
   const near=abs<=1;
   const src=photo.thumbUrl||photo.url;
   const img=document.createElement('img');
-  img.src=src;
   img.alt=(photo.name||'').replace(/"/g,'');
   img.loading=near?'eager':'lazy';
   img.decoding='async';
   if(near) img.setAttribute('fetchpriority','high');
+  img.addEventListener('load',()=>{ img.classList.add('hero-img-ready'); el.classList.remove('hero-card-loading'); });
   // If the image fails (broken/expired link), don't leave a blank/broken card —
   // fall back to the full-size url once, then just show the card's own background.
   img.onerror=function(){ thumbImgFallback(this,photo.url); };
   el.appendChild(img);
+  if(near){
+    img.src=src; // on-screen now — never wait behind other cards
+  } else {
+    el.classList.add('hero-card-loading');
+    heroQueueImageLoad(img,src,abs);
+  }
   el.addEventListener('click',()=>{
     if(entry.offset!==0){ shiftHeroCards(entry.offset); pauseThenResumeHeroAutoplay(); }
   });
@@ -1522,7 +1585,26 @@ function shiftHeroCards(steps){
 function startHeroAutoplay(){
   stopHeroAutoplay();
   if(heroSliderPool.length<2) return;
-  heroSliderTimer=setInterval(()=>{ shiftHeroCards(1); },2000);
+  heroAutoplayWaitTicks=0;
+  heroSliderTimer=setInterval(heroAutoplayTick,2000);
+}
+// Runs every 2s instead of calling shiftHeroCards directly. If the card about
+// to become the new center hasn't actually finished loading yet (slow
+// connection), advancing anyway would swap in a blank/half-loaded image — so
+// this waits a beat instead, up to a short cap, rather than ever showing an
+// empty card.
+let heroAutoplayWaitTicks=0;
+const HERO_AUTOPLAY_MAX_WAIT_TICKS=4; // ~8s grace before advancing regardless
+function heroAutoplayTick(){
+  const incoming=heroCardEls.find(e=>e.offset===1);
+  const img=incoming&&incoming.el.querySelector('img');
+  const ready=!img||(img.complete&&img.naturalWidth>0);
+  if(!ready && heroAutoplayWaitTicks<HERO_AUTOPLAY_MAX_WAIT_TICKS){
+    heroAutoplayWaitTicks++;
+    return;
+  }
+  heroAutoplayWaitTicks=0;
+  shiftHeroCards(1);
 }
 function stopHeroAutoplay(){ if(heroSliderTimer){clearInterval(heroSliderTimer); heroSliderTimer=null;} }
 function pauseThenResumeHeroAutoplay(){
@@ -1878,8 +1960,8 @@ function renderAlbumList(){
     d.innerHTML=`${cover}<span style="flex:1;">${a}</span>
       <select class="field" style="flex:0 0 auto;min-width:100px;padding:5px 8px;font-size:12px;" onchange="setAlbumCategory('${a.replace(/'/g,"\\'")}',this.value)">
         <option value="actress"${cat==='actress'?' selected':''}>👑 Actress</option>
-        <option value="type"${cat==='type'?' selected':''}>Body Part</option>
-        <option value="random"${cat==='random'?' selected':''}>Thevidiyas</option>
+        <option value="type"${cat==='type'?' selected':''}>Type</option>
+        <option value="random"${cat==='random'?' selected':''}>Random</option>
       </select>
       <button class="btn" style="padding:4px 8px;font-size:11px;" onclick="deleteAlbum(${i})">🗑</button>`;
     list.appendChild(d);
