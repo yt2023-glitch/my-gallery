@@ -931,6 +931,15 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
       <div id="drive-backup-status" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
     </div>
 
+    <!-- DISASTER RECOVERY: REBUILD FROM DRIVE -->
+    <div class="settings-section" style="border-color:rgba(220,80,80,.35);">
+      <div class="settings-label">🚨 Emergency: Rebuild All Images from Drive Backup</div>
+      <p style="font-size:11px;color:var(--muted);margin-top:-4px;">Only use this if photos across the whole site are broken (e.g. the image host lost everything). This re-uploads every backed-up photo's original file fresh and overwrites its link — album placement is untouched since that's stored here, not at the image host. Photos that were never backed up to Drive can't be recovered this way.</p>
+      <button class="btn danger" id="rebuild-btn" onclick="startRebuild()">🚨 Rebuild All Images from Drive</button>
+      <button class="btn danger" id="rebuild-stop-btn" onclick="stopRebuild()" style="display:none;">Stop</button>
+      <div id="rebuild-status" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
+    </div>
+
     <hr class="settings-divider">
 
     <div class="row" style="justify-content:flex-end;">
@@ -1315,6 +1324,7 @@ async function apiGet() {
     }
     if (json.optimizeStatus) { optimizeStatus = json.optimizeStatus; renderOvernightOptimizeUI(); }
     if (json.backupStatus) { backupStatus = json.backupStatus; renderDriveBackupUI(); }
+    if (json.rebuildStatus) { rebuildStatus = json.rebuildStatus; renderRebuildUI(); }
     // Load pinned order from sheet (overrides localStorage — source of truth)
     if (Array.isArray(json.pinnedOrder) && json.pinnedOrder.length > 0) {
       pinnedOrder = json.pinnedOrder;
@@ -1421,42 +1431,16 @@ function thumbImgFallback(img,fullUrl){
     if(img.parentElement) img.parentElement.style.background='var(--surface2)';
   }
 }
-// ── HERO SLIDER IMAGE LOAD QUEUE ─────────────────────────────────────────
-// Caps how many off-screen "buffer" thumbnails download at once. Without
-// this, every autoplay tick adds a brand-new request on top of whatever's
-// still in flight, and on a slow connection the "still downloading, invisible"
-// pile grows faster than the "finished, visible" pile until cards go blank.
-// The center/near cards (what's actually on screen) always bypass this queue
-// and load immediately — only the not-yet-visible buffer cards get throttled.
-const HERO_MAX_CONCURRENT_LOADS=3;
-let heroActiveLoads=0;
-let heroLoadQueue=[]; // [{img, src, priority}] — lower priority number = loads sooner
-function heroQueueImageLoad(img,src,priority){
-  heroLoadQueue=heroLoadQueue.filter(q=>q.img!==img);
-  heroLoadQueue.push({img,src,priority});
-  heroLoadQueue.sort((a,b)=>a.priority-b.priority);
-  heroPumpImageQueue();
-}
-function heroPumpImageQueue(){
-  while(heroActiveLoads<HERO_MAX_CONCURRENT_LOADS && heroLoadQueue.length){
-    const next=heroLoadQueue.shift();
-    if(!next.img.isConnected) continue; // card was removed while waiting — skip it, don't waste a slot
-    heroActiveLoads++;
-    let released=false;
-    const release=()=>{
-      if(released) return; released=true;
-      clearTimeout(watchdog);
-      heroActiveLoads=Math.max(0,heroActiveLoads-1); heroPumpImageQueue();
-    };
-    // Safety net: if load/error somehow never fires (e.g. the card gets torn
-    // down mid-request during a slider rebuild), this guarantees the slot
-    // frees up instead of permanently blocking every card behind it.
-    const watchdog=setTimeout(release,8000);
-    next.img.addEventListener('load',release,{once:true});
-    next.img.addEventListener('error',release,{once:true});
-    next.img.src=next.src;
-  }
-}
+// ── HERO SLIDER IMAGE LOADING ────────────────────────────────────────────
+// Previously this went through a hand-rolled concurrency queue to avoid many
+// simultaneous multi-MB original-image downloads. That's no longer needed
+// once a photo has a thumbUrl (small, optimized) — and the custom queue kept
+// finding new ways to get permanently stuck (stale counters across rebuilds,
+// then still stalling even after fixing that). Simplest and most reliable
+// fix: just load every card's image directly and let the browser's own
+// HTTP/2 connection handling manage concurrency, which it already does well
+// for small thumbnails. Kept the buffer range modest (below) so this stays
+// a reasonable number of requests even for not-yet-optimized photos.
 function shuffleArray(arr){
   const a=arr.slice();
   for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
@@ -1491,7 +1475,7 @@ function heroPhotoAt(offset){
 // "staging" buffers kept in the DOM so new cards can slide smoothly into view
 // instead of popping in — this is what makes the motion continuous.
 const HERO_VISIBLE_RANGE=4;
-const HERO_BUFFER_RANGE=5;
+const HERO_BUFFER_RANGE=4;
 let heroCardEls=[]; // {el, offset, photo}
 let heroCardW=140;
 function computeHeroMetrics(){
@@ -1531,10 +1515,9 @@ function createHeroCardEntry(offset,metrics){
   const el=document.createElement('div');
   el.className='hero-card';
   const abs=Math.abs(offset);
-  // Cards near the center are visible immediately, so they load right away and
-  // with priority. Far-off cards (still in the DOM only as scroll buffer) are
-  // throttled through the load queue so they can't pile up and choke the ones
-  // that actually matter right now.
+  // Cards near the center are what's actually on screen, so they get fetch
+  // priority — but every card now loads directly and immediately (see note
+  // above the queue removal).
   const near=abs<=1;
   const src=photo.thumbUrl||photo.url;
   const img=document.createElement('img');
@@ -1542,8 +1525,6 @@ function createHeroCardEntry(offset,metrics){
   // Native loading="lazy" would silently defer these forever — the slider is
   // driven by CSS transforms, not real scrolling, so the browser's own
   // scroll-based lazy-load heuristic never triggers for off-screen cards.
-  // Concurrency is already capped by the heroLoadQueue below, so "eager" is
-  // correct here regardless of near/far.
   img.loading='eager';
   img.decoding='async';
   if(near) img.setAttribute('fetchpriority','high');
@@ -1552,12 +1533,8 @@ function createHeroCardEntry(offset,metrics){
   // fall back to the full-size url once, then just show the card's own background.
   img.onerror=function(){ thumbImgFallback(this,photo.url); };
   el.appendChild(img);
-  if(near){
-    img.src=src; // on-screen now — never wait behind other cards
-  } else {
-    el.classList.add('hero-card-loading');
-    heroQueueImageLoad(img,src,abs);
-  }
+  if(!near) el.classList.add('hero-card-loading');
+  img.src=src;
   el.addEventListener('click',()=>{
     if(entry.offset!==0){ shiftHeroCards(entry.offset); pauseThenResumeHeroAutoplay(); }
   });
@@ -1580,13 +1557,6 @@ function initHeroSlider(){
     track.innerHTML='';
     heroCardEls=[];
     heroSliderDirty=false;
-    // Wiping the DOM above abandons any downloads still in flight/queued from
-    // a previous init (this function can run more than once per page load —
-    // e.g. again when hero settings arrive from the sheet). Without resetting
-    // these, the concurrency counter can get permanently stuck if an abandoned
-    // image never fires load/error, silently blocking every future card.
-    heroActiveLoads=0;
-    heroLoadQueue=[];
     heroSliderPool=shuffleArray(getHeroSliderPhotos());
     heroSliderIndex=0;
     heroSliderInitialized=true;
@@ -3467,10 +3437,13 @@ function openSettingsModal() {
   populateHeroSourceControls();
   renderOvernightOptimizeUI();
   renderDriveBackupUI();
+  renderRebuildUI();
   if (optimizeStatus.running) startOvernightStatusPolling();
   if (backupStatus.running) startBackupStatusPolling();
+  if (rebuildStatus.running) startRebuildStatusPolling();
   fetchOptimizeStatus();
   fetchBackupStatus();
+  fetchRebuildStatus();
   document.getElementById('settings-modal').classList.add('open');
 }
 function closeSettingsModal() {
@@ -3478,6 +3451,7 @@ function closeSettingsModal() {
   document.getElementById('logo-file').value = '';
   stopOvernightStatusPolling();
   stopBackupStatusPolling();
+  stopRebuildStatusPolling();
 }
 function handleLogoUpload(file) {
   if (!file || !file.type.startsWith('image/')) { showToast('Please select an image file.', true); return; }
@@ -3722,6 +3696,79 @@ async function stopDriveBackup(){
   await apiPost({ action:'stopBackup' });
   stopBackupStatusPolling();
   await fetchBackupStatus();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// DISASTER RECOVERY: REBUILD ALL IMAGES FROM DRIVE — same trigger-based
+// pattern as the other two jobs, but re-uploads EVERY backed-up photo
+// unconditionally (not just missing ones), for the "image host lost
+// everything" scenario.
+// ══════════════════════════════════════════════════════════════════════════
+let rebuildStatus = { running:false, total:0, done:0, failed:0, startedAt:null, updatedAt:null, finishedAt:null };
+
+function renderRebuildUI(){
+  const startBtn = document.getElementById('rebuild-btn');
+  const stopBtn = document.getElementById('rebuild-stop-btn');
+  const statusEl = document.getElementById('rebuild-status');
+  if (!startBtn || !stopBtn || !statusEl) return;
+  const s = rebuildStatus;
+  if (s.running) {
+    startBtn.style.display = 'none';
+    stopBtn.style.display = '';
+    const ago = s.updatedAt ? Math.max(0, Math.round((Date.now()-s.updatedAt)/1000)) : null;
+    let txt = `Rebuilding — ${s.done}/${s.total} done${s.failed?`, ${s.failed} failed`:''}. Safe to close this site.${ago!=null?` (last update ${ago}s ago)`:''}`;
+    if (s.failed > 0 && s.lastError) txt += `\nLast error: ${s.lastError}`;
+    statusEl.textContent = txt;
+    statusEl.style.whiteSpace = 'pre-line';
+  } else {
+    startBtn.style.display = '';
+    stopBtn.style.display = 'none';
+    if (s.finishedAt && s.total) {
+      let txt = `Done — rebuilt ${s.done}/${s.total}${s.failed?`, ${s.failed} failed`:''}.`;
+      if (s.failed > 0 && s.lastError) txt += `\nLast error: ${s.lastError}`;
+      statusEl.textContent = txt;
+      statusEl.style.whiteSpace = 'pre-line';
+    } else if (s.total === 0 && s.finishedAt) {
+      statusEl.textContent = `No Drive-backed-up photos found to rebuild.`;
+    } else {
+      statusEl.textContent = '';
+    }
+  }
+}
+async function fetchRebuildStatus(){
+  try {
+    const res = await fetch(`${API}?action=status`);
+    const json = await res.json();
+    if (json.rebuildStatus) { rebuildStatus = json.rebuildStatus; renderRebuildUI(); }
+  } catch(e) { /* silent — will retry on next poll */ }
+}
+let _rebuildPollTimer = null;
+function startRebuildStatusPolling(){
+  stopRebuildStatusPolling();
+  _rebuildPollTimer = setInterval(() => {
+    fetchRebuildStatus();
+    if (!rebuildStatus.running) stopRebuildStatusPolling();
+  }, 15000);
+}
+function stopRebuildStatusPolling(){
+  if (_rebuildPollTimer) { clearInterval(_rebuildPollTimer); _rebuildPollTimer = null; }
+}
+async function startRebuild(){
+  const backedUp = data.photos.filter(p => p.driveBackupId).length;
+  if (!backedUp) { showToast('No Drive-backed-up photos found — nothing to rebuild.', true); return; }
+  if (!confirm(`This will re-upload all ${backedUp} Drive-backed-up photos and overwrite their links — only do this if photos are actually broken site-wide (e.g. the image host lost everything). Album placement stays correct automatically. Continue?`)) return;
+  if (!confirm(`Really sure? This runs on Google's servers, safe to close the site, but will overwrite the url for ${backedUp} photos. Type-confirm by clicking OK one more time.`)) return;
+  await apiPost({ action:'startRebuild' });
+  document.getElementById('rebuild-status').textContent = 'Starting… the first batch runs within about 5 minutes.';
+  rebuildStatus = { running:true, total:backedUp, done:0, failed:0, startedAt:Date.now(), updatedAt:Date.now(), finishedAt:null };
+  renderRebuildUI();
+  startRebuildStatusPolling();
+}
+async function stopRebuild(){
+  if (!confirm('Stop the rebuild? Photos already rebuilt stay fixed — you can resume anytime.')) return;
+  await apiPost({ action:'stopRebuild' });
+  stopRebuildStatusPolling();
+  await fetchRebuildStatus();
 }
 
 async function saveSettings() {
