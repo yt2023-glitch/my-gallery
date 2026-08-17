@@ -1516,7 +1516,12 @@ function createHeroCardEntry(offset,metrics){
   const src=photo.thumbUrl||photo.url;
   const img=document.createElement('img');
   img.alt=(photo.name||'').replace(/"/g,'');
-  img.loading=near?'eager':'lazy';
+  // Native loading="lazy" would silently defer these forever — the slider is
+  // driven by CSS transforms, not real scrolling, so the browser's own
+  // scroll-based lazy-load heuristic never triggers for off-screen cards.
+  // Concurrency is already capped by the heroLoadQueue below, so "eager" is
+  // correct here regardless of near/far.
+  img.loading='eager';
   img.decoding='async';
   if(near) img.setAttribute('fetchpriority','high');
   img.addEventListener('load',()=>{ img.classList.add('hero-img-ready'); el.classList.remove('hero-card-loading'); });
