@@ -1442,7 +1442,16 @@ function heroPumpImageQueue(){
     const next=heroLoadQueue.shift();
     if(!next.img.isConnected) continue; // card was removed while waiting — skip it, don't waste a slot
     heroActiveLoads++;
-    const release=()=>{ heroActiveLoads=Math.max(0,heroActiveLoads-1); heroPumpImageQueue(); };
+    let released=false;
+    const release=()=>{
+      if(released) return; released=true;
+      clearTimeout(watchdog);
+      heroActiveLoads=Math.max(0,heroActiveLoads-1); heroPumpImageQueue();
+    };
+    // Safety net: if load/error somehow never fires (e.g. the card gets torn
+    // down mid-request during a slider rebuild), this guarantees the slot
+    // frees up instead of permanently blocking every card behind it.
+    const watchdog=setTimeout(release,8000);
     next.img.addEventListener('load',release,{once:true});
     next.img.addEventListener('error',release,{once:true});
     next.img.src=next.src;
@@ -1571,6 +1580,13 @@ function initHeroSlider(){
     track.innerHTML='';
     heroCardEls=[];
     heroSliderDirty=false;
+    // Wiping the DOM above abandons any downloads still in flight/queued from
+    // a previous init (this function can run more than once per page load —
+    // e.g. again when hero settings arrive from the sheet). Without resetting
+    // these, the concurrency counter can get permanently stuck if an abandoned
+    // image never fires load/error, silently blocking every future card.
+    heroActiveLoads=0;
+    heroLoadQueue=[];
     heroSliderPool=shuffleArray(getHeroSliderPhotos());
     heroSliderIndex=0;
     heroSliderInitialized=true;
