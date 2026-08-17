@@ -149,6 +149,10 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .recycle-actions{display:flex;gap:3px;justify-content:center;padding:3px;}
 #pw-screen{position:fixed;inset:0;background:var(--bg);z-index:99999;display:flex;align-items:center;justify-content:center;}
 #pw-screen.hidden{display:none;}
+#decoy-screen{position:fixed;inset:0;background:var(--bg);z-index:100000;display:none;align-items:center;justify-content:center;padding:34px;text-align:center;}
+#decoy-screen.open{display:flex;}
+.decoy-msg{font-family:'DM Sans',sans-serif;font-size:19px;line-height:1.7;color:var(--text);max-width:480px;}
+.decoy-emoji{width:1.2em;height:1.2em;vertical-align:-0.24em;display:inline-block;}
 .pw-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:34px;width:310px;max-width:92vw;display:flex;flex-direction:column;gap:15px;text-align:center;}
 .pw-logo{font-family:'Playfair Display',serif;font-size:24px;color:var(--accent2);}
 .pw-logo span{color:var(--accent);}
@@ -255,6 +259,25 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .cover-zoom-slider{flex:1;accent-color:var(--accent);cursor:pointer;}
 .settings-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
 .settings-divider{border:none;border-top:1px solid var(--border);margin:4px 0;}
+
+/* ── BACKGROUND MUSIC ──────────────────────────────────────────────────── */
+#music-toggle-btn{position:fixed;bottom:16px;right:16px;width:46px;height:46px;border-radius:50%;background:var(--accent);border:1px solid var(--accent);color:#1a1200;font-size:17px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:10000;box-shadow:0 6px 18px rgba(0,0,0,.5);transition:transform .15s,background .2s;}
+#music-toggle-btn:hover{transform:scale(1.07);}
+#music-toggle-btn.mtb-visible{display:flex;}
+#music-toggle-btn.mtb-loading{opacity:.6;cursor:wait;}
+#music-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99991;align-items:center;justify-content:center;}
+#music-modal.open{display:flex;}
+.music-list{display:flex;flex-direction:column;gap:7px;max-height:260px;overflow-y:auto;}
+.music-item{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;}
+.music-item.playing{border-color:var(--accent);}
+.music-note{color:var(--accent);flex-shrink:0;}
+.music-item-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.music-item-actions{display:flex;gap:3px;flex-shrink:0;}
+.music-mini-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:3px 5px;border-radius:5px;transition:background .15s,color .15s;}
+.music-mini-btn:hover{background:var(--surface2);color:var(--accent);}
+.music-mini-btn.danger:hover{color:#e74c3c;}
+.music-empty{text-align:center;color:var(--muted);font-size:12px;padding:14px 0;}
+.music-count{font-size:11px;color:var(--muted);}
 
 /* ── VIDEO ALBUM ────────────────────────────────────────────────────────── */
 .video-thumb{position:relative;border-radius:8px;overflow:hidden;cursor:pointer;background:#111;border:1px solid var(--border);aspect-ratio:16/9;transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease;z-index:1;}
@@ -506,6 +529,11 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   </div>
 </div>
 
+<!-- DECOY SCREEN — shown instead of a normal error whenever the wrong password is entered -->
+<div id="decoy-screen">
+  <div class="decoy-msg">Sorry for wasting your precious time. There is nothing here to see <img class="decoy-emoji" src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f614.svg" alt="😔" draggable="false"></div>
+</div>
+
 <header>
   <div class="header-left">
     <img id="site-logo-img" class="site-logo-img" src="" alt="Logo">
@@ -518,10 +546,41 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     <span class="storage-badge" id="storage-badge">📷 0 photos</span>
     <button class="btn" id="recycle-btn" onclick="openRecycleBin()">🗑 Bin</button>
     <button class="btn" id="albums-btn" onclick="openAlbumModal()">⊞ Albums</button>
+    <button class="btn" id="music-btn" onclick="openMusicModal()">🎵 Music</button>
     <button class="btn" id="settings-btn" onclick="openSettingsModal()">⚙ Settings</button>
     <button class="btn primary" id="add-btn" onclick="toggleAddPanel()">＋ Add</button>
   </div>
 </header>
+
+<!-- BACKGROUND MUSIC PLAYER -->
+<audio id="bg-audio" preload="none"></audio>
+<button id="music-toggle-btn" onclick="toggleMusicPlayback()" title="Play/Pause music">▶</button>
+
+<!-- MUSIC PLAYLIST MODAL -->
+<div id="music-modal">
+  <div class="modal-box" style="width:400px;">
+    <h3>🎵 Music Playlist</h3>
+    <p style="font-size:11px;color:var(--muted);margin-top:-8px;">Plays automatically once you unlock the gallery, and pauses when you're locked out. Songs are saved to your Google Sheet, so the same playlist plays on every device. Up to 5 songs.</p>
+    <div class="settings-section">
+      <div class="settings-label">Add a song</div>
+      <p style="font-size:11px;color:var(--muted);margin-top:-4px;">Paste a direct link to an MP3 file — e.g. a raw.githubusercontent.com link to an mp3 you've added to this same GitHub repo, or any other direct-download audio link. It must open/download the file itself, not a webpage.</p>
+      <div class="row">
+        <input class="field" id="music-url-input" placeholder="Direct MP3 URL (https://...)" style="flex:2;">
+        <input class="field" id="music-name-input" placeholder="Name (optional)" style="flex:1;">
+        <button class="btn primary" id="music-add-btn" onclick="addMusicByUrl()" style="flex:0 0 auto;">＋ Add</button>
+      </div>
+    </div>
+    <hr class="settings-divider">
+    <div class="row" style="justify-content:space-between;align-items:center;">
+      <span class="music-count" id="music-count-label">0 / 5 songs</span>
+      <button class="btn" id="music-shuffle-btn" onclick="shuffleMusicPlaylist()">🔀 Shuffle</button>
+    </div>
+    <div class="music-list" id="music-list"></div>
+    <div class="row" style="justify-content:flex-end;">
+      <button class="btn" onclick="closeMusicModal()">Close</button>
+    </div>
+  </div>
+</div>
 
 <div class="add-panel" id="add-panel">
   <h3>Add Photos</h3>
@@ -1173,6 +1232,7 @@ let selectedAlbums = new Set();
 let ssTimer = null, ssRunning = false;
 let uiHideTimer = null;
 let pendingFiles = [];
+let isUnlocked=false; // declared early so the music playlist init (which reads this) never hits it uninitialized
 let recycleBin = JSON.parse(localStorage.getItem('gallery_recycle')||'[]');
 let starredIds = new Set(JSON.parse(localStorage.getItem('gallery_starred')||'[]'));
 let albumCovers = JSON.parse(localStorage.getItem('gallery_covers')||'{}');
@@ -1319,6 +1379,18 @@ async function apiGet() {
           heroSliderSettings = JSON.parse(json.settings.heroSliderSettings);
           localStorage.setItem('gallery_hero_slider_settings', JSON.stringify(heroSliderSettings));
           heroSliderMaybeRefresh();
+        } catch(e) {}
+      }
+      // Music playlist — sheet is source of truth, overrides localStorage, so
+      // the same songs play on every device that unlocks this gallery.
+      if (json.settings.musicPlaylist) {
+        try {
+          const wasCurrentId = musicStarted ? (musicPlaylist[musicCurrentIndex] && musicPlaylist[musicCurrentIndex].id) : null;
+          musicPlaylist = JSON.parse(json.settings.musicPlaylist) || [];
+          cacheMusicPlaylist();
+          musicCurrentIndex = wasCurrentId ? Math.max(0, musicPlaylist.findIndex(s=>s.id===wasCurrentId)) : 0;
+          renderMusicList();
+          updateMusicToggleVisibility();
         } catch(e) {}
       }
     }
@@ -3797,9 +3869,244 @@ async function saveSettings() {
   showToast('Settings saved ✓');
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// BACKGROUND MUSIC PLAYLIST
+// Songs are referenced by a direct hosted MP3 URL (e.g. a raw.githubusercontent.com
+// link into this same repo, or any other direct-linkable audio host) rather than
+// uploaded file bytes — that keeps each entry tiny (just a URL + name), so the
+// whole playlist can be saved to the same Google Sheet "Settings" tab used for
+// the rest of the site's settings. That's what makes it permanent and identical
+// on every device: any browser that unlocks the gallery reads the same playlist
+// from the sheet and streams the same URLs, no per-device storage involved.
+// ══════════════════════════════════════════════════════════════════════════
+const MUSIC_MAX_SONGS=5;
+let musicPlaylist=[];      // [{id,name,url}] in play order
+let musicCurrentIndex=0;
+let musicStarted=false;    // has playback ever been kicked off this session
+let musicSaveTimer=null;
+const bgAudio=document.getElementById('bg-audio');
+const musicToggleBtn=document.getElementById('music-toggle-btn');
+
+function loadMusicPlaylistFromCache(){
+  try{ musicPlaylist=JSON.parse(localStorage.getItem('gallery_music_playlist')||'[]'); }
+  catch(e){ musicPlaylist=[]; }
+}
+function cacheMusicPlaylist(){
+  localStorage.setItem('gallery_music_playlist',JSON.stringify(musicPlaylist));
+}
+// Debounced push to the Google Sheet so rapid successive edits (e.g. shuffle)
+// don't fire a burst of requests.
+function persistMusicPlaylist(){
+  cacheMusicPlaylist();
+  clearTimeout(musicSaveTimer);
+  musicSaveTimer=setTimeout(()=>{
+    apiPost({ action:'settings', settings:{ musicPlaylist: JSON.stringify(musicPlaylist) } });
+  },400);
+}
+
+function initMusicPlaylist(){
+  loadMusicPlaylistFromCache(); // instant render; apiGet() will overwrite with the sheet's copy once it loads
+  renderMusicList();
+  updateMusicToggleVisibility();
+}
+
+function escapeHtmlMusic(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+
+function renderMusicList(){
+  const list=document.getElementById('music-list');
+  const countLabel=document.getElementById('music-count-label');
+  const addBtn=document.getElementById('music-add-btn');
+  if(countLabel) countLabel.textContent=musicPlaylist.length+' / '+MUSIC_MAX_SONGS+' songs';
+  const atMax=musicPlaylist.length>=MUSIC_MAX_SONGS;
+  if(addBtn){ addBtn.style.opacity=atMax?'.45':'1'; addBtn.style.pointerEvents=atMax?'none':'auto'; }
+  if(!list) return;
+  if(musicPlaylist.length===0){
+    list.innerHTML='<div class="music-empty">No songs yet. Add up to 5 by pasting a direct MP3 link.</div>';
+    return;
+  }
+  list.innerHTML=musicPlaylist.map((s,i)=>{
+    const isCurrent=musicStarted&&i===musicCurrentIndex;
+    return `
+    <div class="music-item${isCurrent?' playing':''}">
+      <span class="music-note">${isCurrent&&!bgAudio.paused?'♪':'🎵'}</span>
+      <span class="music-item-name">${escapeHtmlMusic(s.name)}</span>
+      <div class="music-item-actions">
+        <button class="music-mini-btn" onclick="moveMusicSong(${i},-1)" title="Move up"${i===0?' disabled style="opacity:.3"':''}>↑</button>
+        <button class="music-mini-btn" onclick="moveMusicSong(${i},1)" title="Move down"${i===musicPlaylist.length-1?' disabled style="opacity:.3"':''}>↓</button>
+        <button class="music-mini-btn danger" onclick="removeMusicSong('${s.id}')" title="Remove">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openMusicModal(){
+  renderMusicList();
+  document.getElementById('music-url-input').value='';
+  document.getElementById('music-name-input').value='';
+  document.getElementById('music-modal').classList.add('open');
+}
+function closeMusicModal(){ document.getElementById('music-modal').classList.remove('open'); }
+
+function addMusicByUrl(){
+  const urlInput=document.getElementById('music-url-input');
+  const nameInput=document.getElementById('music-name-input');
+  const url=urlInput.value.trim();
+  let name=nameInput.value.trim();
+  if(musicPlaylist.length>=MUSIC_MAX_SONGS){ showToast('Playlist is full — remove a song first (max 5).',true); return; }
+  if(!url){ showToast('Paste a direct link to an MP3 file first.',true); return; }
+  if(!/^https?:\/\//i.test(url)){ showToast('That doesn\'t look like a valid link.',true); return; }
+  if(!name){
+    try{ name=decodeURIComponent(url.split('/').pop().split('?')[0].replace(/\.mp3$/i,'')) || 'Untitled'; }
+    catch(e){ name='Untitled'; }
+  }
+  const id='song_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+  musicPlaylist.push({id,name,url});
+  persistMusicPlaylist();
+  renderMusicList();
+  updateMusicToggleVisibility();
+  urlInput.value=''; nameInput.value='';
+  showToast('Song added ✓');
+}
+
+function removeMusicSong(id){
+  const idx=musicPlaylist.findIndex(s=>s.id===id);
+  if(idx===-1) return;
+  const wasCurrent=musicStarted && idx===musicCurrentIndex;
+  musicPlaylist.splice(idx,1);
+  if(idx<musicCurrentIndex) musicCurrentIndex--;
+  persistMusicPlaylist();
+  if(musicPlaylist.length===0){
+    bgAudio.pause(); bgAudio.removeAttribute('src'); bgAudio.load();
+    musicStarted=false; musicCurrentIndex=0;
+  } else if(wasCurrent){
+    if(musicCurrentIndex>=musicPlaylist.length) musicCurrentIndex=0;
+    playCurrentTrack(!bgAudio.paused);
+  }
+  renderMusicList();
+  updateMusicToggleVisibility();
+  showToast('Song removed');
+}
+
+function moveMusicSong(index,dir){
+  const newIndex=index+dir;
+  if(newIndex<0||newIndex>=musicPlaylist.length) return;
+  const wasCurrentId = musicStarted ? (musicPlaylist[musicCurrentIndex] && musicPlaylist[musicCurrentIndex].id) : null;
+  const tmp=musicPlaylist[index]; musicPlaylist[index]=musicPlaylist[newIndex]; musicPlaylist[newIndex]=tmp;
+  if(wasCurrentId!==null) musicCurrentIndex=musicPlaylist.findIndex(s=>s.id===wasCurrentId);
+  persistMusicPlaylist();
+  renderMusicList();
+}
+
+function shuffleMusicPlaylist(){
+  if(musicPlaylist.length<2){ showToast('Add more songs to shuffle.',true); return; }
+  const wasCurrentId = musicStarted ? (musicPlaylist[musicCurrentIndex] && musicPlaylist[musicCurrentIndex].id) : null;
+  for(let i=musicPlaylist.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [musicPlaylist[i],musicPlaylist[j]]=[musicPlaylist[j],musicPlaylist[i]];
+  }
+  if(wasCurrentId!==null) musicCurrentIndex=musicPlaylist.findIndex(s=>s.id===wasCurrentId);
+  persistMusicPlaylist();
+  renderMusicList();
+  showToast('Playlist shuffled 🔀');
+}
+
+function playCurrentTrack(autoplay,resumeTime){
+  if(musicPlaylist.length===0) return;
+  const song=musicPlaylist[musicCurrentIndex];
+  if(!song) return;
+  bgAudio.src=song.url;
+  musicStarted=true;
+  const doPlay=()=>{ if(autoplay){ bgAudio.play().catch(()=>{ /* autoplay may be blocked until a user gesture — the toggle button covers that */ }); } };
+  if(resumeTime && resumeTime>0.5){
+    const onMeta=()=>{
+      bgAudio.removeEventListener('loadedmetadata',onMeta);
+      const dur=bgAudio.duration;
+      bgAudio.currentTime = (dur && resumeTime<dur) ? resumeTime : 0;
+      doPlay();
+    };
+    bgAudio.addEventListener('loadedmetadata',onMeta);
+  } else {
+    doPlay();
+  }
+  updateMusicToggleIcon();
+  renderMusicList();
+}
+
+// Remembers exactly where playback was, so a page reload or a lock-screen
+// timeout followed by re-entering the password resumes mid-song instead of
+// restarting from the beginning.
+function saveMusicPosition(){
+  if(!musicStarted || musicPlaylist.length===0) return;
+  const song=musicPlaylist[musicCurrentIndex];
+  if(!song) return;
+  try{
+    localStorage.setItem('gallery_music_position', JSON.stringify({ id: song.id, time: bgAudio.currentTime||0 }));
+  }catch(e){}
+}
+function loadMusicPosition(){
+  try{ return JSON.parse(localStorage.getItem('gallery_music_position')||'null'); }
+  catch(e){ return null; }
+}
+// Periodic safety-net save while playing, in case the tab closes/reloads
+// without a clean pagehide (some mobile browsers skip it).
+setInterval(()=>{ if(musicStarted && !bgAudio.paused) saveMusicPosition(); }, 4000);
+window.addEventListener('pagehide', saveMusicPosition);
+window.addEventListener('beforeunload', saveMusicPosition);
+
+bgAudio.addEventListener('ended',()=>{
+  if(musicPlaylist.length===0) return;
+  musicCurrentIndex=(musicCurrentIndex+1)%musicPlaylist.length; // repeats the whole playlist forever
+  playCurrentTrack(true);
+});
+bgAudio.addEventListener('play',updateMusicToggleIcon);
+bgAudio.addEventListener('pause',()=>{ updateMusicToggleIcon(); saveMusicPosition(); });
+
+function updateMusicToggleIcon(){
+  if(!musicToggleBtn) return;
+  musicToggleBtn.textContent = (musicStarted && !bgAudio.paused) ? '⏸' : '▶';
+}
+function updateMusicToggleVisibility(){
+  if(!musicToggleBtn) return;
+  musicToggleBtn.classList.toggle('mtb-visible', isUnlocked && musicPlaylist.length>0);
+  updateMusicToggleIcon();
+}
+
+function toggleMusicPlayback(){
+  if(musicPlaylist.length===0) return;
+  if(!musicStarted){ resumeMusicOnUnlock(); return; }
+  if(bgAudio.paused){ bgAudio.play().catch(()=>{}); }
+  else{ bgAudio.pause(); }
+}
+
+// Called right after a successful unlock — whether this is a same-session
+// unlock (song was merely paused, currentTime is untouched and just resumes)
+// or a fresh page load after a reload/timeout (song restarts its src, so we
+// seek it back to the last saved position first).
+function resumeMusicOnUnlock(){
+  if(musicPlaylist.length===0) return;
+  updateMusicToggleVisibility();
+  if(!musicStarted){
+    const pos=loadMusicPosition();
+    let resumeTime=0;
+    if(pos && pos.id){
+      const idx=musicPlaylist.findIndex(s=>s.id===pos.id);
+      if(idx!==-1){ musicCurrentIndex=idx; resumeTime=pos.time||0; }
+    }
+    playCurrentTrack(true,resumeTime);
+  } else {
+    bgAudio.play().catch(()=>{});
+  }
+}
+// Called whenever the gallery locks (manual timeout or tab-hidden grace period)
+function pauseMusicOnLock(){
+  saveMusicPosition();
+  bgAudio.pause();
+}
+
+initMusicPlaylist();
+
 // PASSWORD
 const PW_HASH='b9ffefb2d2cb9d42865ec8342cd7747d17a54b2d13dcdd3eb7dc7fde178a7939';
-let isUnlocked=false;
 async function hashPassword(pw){
   const enc=new TextEncoder();
   const buf=await crypto.subtle.digest('SHA-256',enc.encode(pw+'gallery_salt_v1'));
@@ -3814,12 +4121,25 @@ async function checkPassword(){
     isUnlocked=true;
     document.getElementById('pw-screen').classList.add('hidden');
     if(!galleryLoaded) loadGallery();
+    resumeMusicOnUnlock();
   } else {
-    err.textContent='Incorrect password.';
-    const inp=document.getElementById('pw-input');
-    inp.classList.add('error'); inp.value='';
-    setTimeout(()=>inp.classList.remove('error'),400);
+    showDecoyScreen();
   }
+}
+// Shown instead of a normal "incorrect password" message whenever the wrong
+// password is entered — a deterrent screen that closes the tab shortly after.
+function showDecoyScreen(){
+  const inp=document.getElementById('pw-input');
+  inp.value='';
+  document.getElementById('pw-error').textContent='';
+  document.getElementById('decoy-screen').classList.add('open');
+  setTimeout(()=>{
+    window.close();
+    // Most browsers block scripts from closing a tab they didn't open
+    // themselves — if that happens, fall back to blanking the page so
+    // nothing further stays visible even though the tab itself remains open.
+    setTimeout(()=>{ try{ window.location.replace('about:blank'); }catch(e){} }, 300);
+  }, 5000);
 }
 function togglePwEye(){const inp=document.getElementById('pw-input');inp.type=inp.type==='password'?'text':'password';}
 function lockGallery(){
@@ -3828,6 +4148,7 @@ function lockGallery(){
   const inp=document.getElementById('pw-input'); inp.value=''; inp.type='password';
   document.getElementById('pw-error').textContent='';
   setTimeout(()=>inp.focus(),100);
+  pauseMusicOnLock();
 }
 // Lock only after 5 minutes away — switching tabs or dimming screen won't interrupt the session
 const LOCK_GRACE_MS = 5 * 60 * 1000; // 5 minutes
