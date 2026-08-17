@@ -4078,13 +4078,60 @@ function toggleMusicPlayback(){
   else{ bgAudio.pause(); }
 }
 
-// Called right after a successful unlock — whether this is a same-session
-// unlock (song was merely paused, currentTime is untouched and just resumes)
-// or a fresh page load after a reload/timeout (song restarts its src, so we
-// seek it back to the last saved position first).
-function resumeMusicOnUnlock(){
+// Starts (or resumes) playback SYNCHRONOUSLY, with no `await` before the
+// bgAudio.play() call. This must be called directly from the password
+// input's click/keydown handler, before any async work (like hashing the
+// password) happens — mobile browsers (iOS Safari especially) only allow
+// audio autoplay when .play() is invoked within the actual synchronous
+// call stack of a user gesture. Once that `await` happens first, the
+// browser no longer treats the later .play() as gesture-triggered and
+// silently blocks it, which is why a manual tap on the play button was
+// needed before. Returns true if it attempted to (re)start playback, so
+// the caller can decide whether to pause it again if the password is wrong.
+function primeMusicPlayback(){
+  if(musicPlaylist.length===0) return false;
+  if(musicStarted){
+    // Same-session unlock — song was merely paused, currentTime is
+    // untouched, just resume it.
+    bgAudio.play().catch(()=>{});
+    return true;
+  }
+  // Fresh page load after a reload/timeout — song restarts its src, so we
+  // seek it back to the last saved position (once metadata is available)
+  // and start playback right away.
+  const pos=loadMusicPosition();
+  let resumeTime=0;
+  if(pos && pos.id){
+    const idx=musicPlaylist.findIndex(s=>s.id===pos.id);
+    if(idx!==-1){ musicCurrentIndex=idx; resumeTime=pos.time||0; }
+  }
+  const song=musicPlaylist[musicCurrentIndex];
+  if(!song) return false;
+  bgAudio.src=song.url;
+  musicStarted=true;
+  if(resumeTime && resumeTime>0.5){
+    const onMeta=()=>{
+      bgAudio.removeEventListener('loadedmetadata',onMeta);
+      const dur=bgAudio.duration;
+      bgAudio.currentTime=(dur && resumeTime<dur)?resumeTime:0;
+    };
+    bgAudio.addEventListener('loadedmetadata',onMeta);
+  }
+  bgAudio.play().catch(()=>{});
+  return true;
+}
+// Called right after a successful unlock. If music playback was already
+// primed synchronously (see primeMusicPlayback above) this just syncs the
+// UI; otherwise (e.g. the music toggle button was clicked directly) it
+// falls back to starting playback itself.
+function resumeMusicOnUnlock(alreadyPrimed){
   if(musicPlaylist.length===0) return;
   updateMusicToggleVisibility();
+  if(alreadyPrimed){
+    updateMusicToggleIcon();
+    renderMusicList();
+    return;
+  }
   if(!musicStarted){
     const pos=loadMusicPosition();
     let resumeTime=0;
@@ -4116,13 +4163,18 @@ async function checkPassword(){
   const input=document.getElementById('pw-input').value;
   const err=document.getElementById('pw-error');
   if(!input){err.textContent='Please enter the password.';return;}
+  // Must happen BEFORE the `await` below, still inside the synchronous
+  // click/keydown call stack, so mobile browsers count it as a genuine
+  // user-gesture play and allow autoplay. See primeMusicPlayback().
+  const primed=primeMusicPlayback();
   const hashed=await hashPassword(input);
   if(hashed===PW_HASH){
     isUnlocked=true;
     document.getElementById('pw-screen').classList.add('hidden');
     if(!galleryLoaded) loadGallery();
-    resumeMusicOnUnlock();
+    resumeMusicOnUnlock(primed);
   } else {
+    if(primed) bgAudio.pause();
     showDecoyScreen();
   }
 }
