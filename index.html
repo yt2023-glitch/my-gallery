@@ -908,6 +908,15 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
       <div id="overnight-optimize-status" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
     </div>
 
+    <!-- GOOGLE DRIVE BACKUP -->
+    <div class="settings-section">
+      <div class="settings-label">Backup to Google Drive</div>
+      <p style="font-size:11px;color:var(--muted);margin-top:-4px;">Copies every photo's original, full-size file into a "Gallery Photo Backup" folder in your Google Drive, organized into subfolders matching your albums. Runs on Google's servers — safe to close this site or turn off your device once started. Skips anything already backed up, so it's safe to run again anytime.</p>
+      <button class="btn" id="drive-backup-btn" onclick="startDriveBackup()">☁️ Start Drive Backup (runs even if closed)</button>
+      <button class="btn danger" id="drive-backup-stop-btn" onclick="stopDriveBackup()" style="display:none;">Stop</button>
+      <div id="drive-backup-status" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
+    </div>
+
     <hr class="settings-divider">
 
     <div class="row" style="justify-content:flex-end;">
@@ -1291,6 +1300,7 @@ async function apiGet() {
       }
     }
     if (json.optimizeStatus) { optimizeStatus = json.optimizeStatus; renderOvernightOptimizeUI(); }
+    if (json.backupStatus) { backupStatus = json.backupStatus; renderDriveBackupUI(); }
     // Load pinned order from sheet (overrides localStorage — source of truth)
     if (Array.isArray(json.pinnedOrder) && json.pinnedOrder.length > 0) {
       pinnedOrder = json.pinnedOrder;
@@ -2046,20 +2056,34 @@ function showZipProgress(label,pct){
 }
 function hideZipProgress(){ document.getElementById('zip-progress').style.display='none'; }
 
-async function fetchImageBlob(url){
-  // Try direct fetch; fall back to a proxy-friendly approach if CORS blocks
-  try{
-    const r=await fetch(url); if(!r.ok) throw new Error('fetch failed');
-    return await r.blob();
-  }catch(e){
-    // fallback: fetch via no-cors (gets opaque blob, still works for zip binary)
-    const r=await fetch(url,{mode:'no-cors'});
-    return await r.blob();
+// Fetches a photo with retries. The old "no-cors" fallback is intentionally
+// gone — an opaque no-cors response can't actually be read, so it silently
+// produced empty/corrupt files that LOOKED like a success. A real failure
+// (thrown error) is far better than a fake success, since callers can then
+// retry it and report it accurately instead of it vanishing without a trace.
+async function fetchImageBlob(url, attempts){
+  attempts = attempts || 3;
+  let lastErr;
+  for (let i=0;i<attempts;i++){
+    try{
+      const r = await fetch(url, { cache:'no-store' });
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const blob = await r.blob();
+      if(!blob || blob.size===0) throw new Error('empty response');
+      return blob;
+    }catch(e){
+      lastErr = e;
+      if(i<attempts-1) await new Promise(res=>setTimeout(res, 600*(i+1))); // brief backoff before retrying
+    }
   }
+  throw lastErr;
 }
 
 function sanitizeFilename(name){ return name.replace(/[\\/:*?"<>|]/g,'_')||'photo'; }
 
+// Builds one album's worth of files into the given zip/folder. Returns the
+// list of photos that failed after all retries, so callers can report them
+// accurately instead of them just silently vanishing from the download.
 async function buildAlbumZip(albumKey, albumLabel, zip, folder){
   const photos = albumKey==='all'
     ? data.photos
@@ -2068,16 +2092,29 @@ async function buildAlbumZip(albumKey, albumLabel, zip, folder){
       : data.photos.filter(p=>(p.albums||[]).includes(albumKey));
   const dir = folder || zip;
   let done=0;
+  const failedPhotos=[];
   for(const p of photos){
     try{
       const blob=await fetchImageBlob(p.url);
       const ext=p.url.split('.').pop().split('?')[0].toLowerCase()||'jpg';
       const fname=sanitizeFilename(p.name)+'.'+ext;
       dir.file(fname,blob);
-    }catch(e){ /* skip failed images */ }
+    }catch(e){ failedPhotos.push(p); }
     done++;
-    showZipProgress(`${albumLabel}: ${done}/${photos.length}`, Math.round(done/photos.length*100));
+    showZipProgress(`${albumLabel}: ${done}/${photos.length}${failedPhotos.length?` (${failedPhotos.length} failed)`:''}`, Math.round(done/photos.length*100));
   }
+  return failedPhotos;
+}
+
+// Shows a clear, honest summary after a zip finishes — including exactly
+// which photos failed, instead of a silent "done ✓" that hides gaps.
+function reportZipResult(label, totalCount, failedPhotos){
+  if(!failedPhotos.length){
+    showToast(`"${label}" downloaded ✓ — all ${totalCount} photos included`);
+    return;
+  }
+  console.warn(`"${label}": ${failedPhotos.length} of ${totalCount} photos failed to download:`, failedPhotos.map(p=>p.name));
+  showToast(`"${label}" downloaded with ${failedPhotos.length} of ${totalCount} photo${totalCount>1?'s':''} missing — see browser console for the list, or try again.`, true);
 }
 
 // SINGLE ALBUM DOWNLOAD
@@ -2092,35 +2129,56 @@ async function downloadAlbumZip(albumKey){
   showZipProgress(`Preparing "${label}"… 0/${photos.length}`, 0);
   try{
     const zip=new JSZip();
-    await buildAlbumZip(albumKey, label, zip, zip);
+    const failedPhotos = await buildAlbumZip(albumKey, label, zip, zip);
     showZipProgress('Generating ZIP file…',100);
     const blob=await zip.generateAsync({type:'blob'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download=sanitizeFilename(label)+'.zip'; a.click();
-    showToast(`"${label}" downloaded ✓`);
+    reportZipResult(label, photos.length, failedPhotos);
   }catch(e){ showToast('ZIP failed: '+e.message,true); }
   finally{ hideZipProgress(); }
 }
 
 // MULTIPLE ALBUMS DOWNLOAD
+// Generates and downloads ONE ZIP PER ALBUM rather than combining everything
+// into a single giant zip. For 1300+ full-size originals across many albums,
+// a single all-in-one zip can hold several GB in browser memory at once —
+// this keeps each zip's memory footprint bounded to just that one album, and
+// a failure in one album can't take down the whole batch.
 async function downloadSelectedAlbumsZip(){
   if(!selectedAlbums.size){ showToast('No albums selected.',true); return; }
   const keys=[...selectedAlbums];
-  const zip=new JSZip();
   showZipProgress('Starting…',0);
+  const summary=[]; // {label, total, failed}
   try{
     for(let i=0;i<keys.length;i++){
       const key=keys[i];
       const label=key==='all'?'All Photos':key==='starred'?'Starred':key;
+      const photos = key==='all'
+        ? data.photos
+        : key==='starred'
+          ? data.photos.filter(p=>starredIds.has(String(p.added)))
+          : data.photos.filter(p=>(p.albums||[]).includes(key));
+      if(!photos.length){ summary.push({label,total:0,failed:0}); continue; }
+      const zip=new JSZip();
       const folder=zip.folder(sanitizeFilename(label));
-      showZipProgress(`Album ${i+1}/${keys.length}: "${label}"`,Math.round(i/keys.length*100));
-      await buildAlbumZip(key,label,zip,folder);
+      showZipProgress(`Album ${i+1}/${keys.length}: "${label}"`,0);
+      const failedPhotos = await buildAlbumZip(key,label,zip,folder);
+      showZipProgress(`Generating "${label}.zip"…`,100);
+      const blob=await zip.generateAsync({type:'blob'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download=sanitizeFilename(label)+'.zip'; a.click();
+      summary.push({label,total:photos.length,failed:failedPhotos.length});
+      if(failedPhotos.length) console.warn(`"${label}": ${failedPhotos.length} photos failed:`, failedPhotos.map(p=>p.name));
+      await new Promise(res=>setTimeout(res,400)); // let the browser register each download before starting the next
     }
-    showZipProgress('Generating ZIP file…',100);
-    const blob=await zip.generateAsync({type:'blob'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download='albums.zip'; a.click();
-    showToast(`${keys.length} album${keys.length>1?'s':''} downloaded ✓`);
+    const totalFailed=summary.reduce((s,x)=>s+x.failed,0);
+    const totalPhotos=summary.reduce((s,x)=>s+x.total,0);
+    if(totalFailed===0){
+      showToast(`${keys.length} album${keys.length>1?'s':''} downloaded ✓ — all ${totalPhotos} photos included`);
+    }else{
+      showToast(`${keys.length} albums downloaded — ${totalFailed} of ${totalPhotos} photos missing. See console for details, or re-download the affected album(s).`, true);
+    }
     toggleAlbumSelectMode();
   }catch(e){ showToast('ZIP failed: '+e.message,true); }
   finally{ hideZipProgress(); }
@@ -2132,13 +2190,13 @@ async function downloadSelectedPhotosZip(){
   const photos=data.photos.filter(p=>selectedIds.has(String(p.added)));
   showZipProgress(`Preparing ${photos.length} photo${photos.length>1?'s':''}…`,0);
   try{
-    const zip=new JSZip(); let done=0;
+    const zip=new JSZip(); let done=0; const failedPhotos=[];
     for(const p of photos){
       try{
         const blob=await fetchImageBlob(p.url);
         const ext=p.url.split('.').pop().split('?')[0].toLowerCase()||'jpg';
         zip.file(sanitizeFilename(p.name)+'.'+ext,blob);
-      }catch(e){ /* skip */ }
+      }catch(e){ failedPhotos.push(p); }
       done++;
       showZipProgress(`${done}/${photos.length} photos…`,Math.round(done/photos.length*100));
     }
@@ -2146,7 +2204,7 @@ async function downloadSelectedPhotosZip(){
     const blob=await zip.generateAsync({type:'blob'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download='photos.zip'; a.click();
-    showToast(`${photos.length} photo${photos.length>1?'s':''} downloaded ✓`);
+    reportZipResult('Selected photos', photos.length, failedPhotos);
   }catch(e){ showToast('ZIP failed: '+e.message,true); }
   finally{ hideZipProgress(); }
 }
@@ -3294,14 +3352,18 @@ function openSettingsModal() {
   }
   populateHeroSourceControls();
   renderOvernightOptimizeUI();
+  renderDriveBackupUI();
   if (optimizeStatus.running) startOvernightStatusPolling();
+  if (backupStatus.running) startBackupStatusPolling();
   fetchOptimizeStatus();
+  fetchBackupStatus();
   document.getElementById('settings-modal').classList.add('open');
 }
 function closeSettingsModal() {
   document.getElementById('settings-modal').classList.remove('open');
   document.getElementById('logo-file').value = '';
   stopOvernightStatusPolling();
+  stopBackupStatusPolling();
 }
 function handleLogoUpload(file) {
   if (!file || !file.type.startsWith('image/')) { showToast('Please select an image file.', true); return; }
@@ -3427,12 +3489,18 @@ function renderOvernightOptimizeUI(){
     startBtn.style.display = 'none';
     stopBtn.style.display = '';
     const ago = s.updatedAt ? Math.max(0, Math.round((Date.now()-s.updatedAt)/1000)) : null;
-    statusEl.textContent = `Running on Google's servers — ${s.done}/${s.total} done${s.failed?`, ${s.failed} skipped`:''}. Safe to close this site.${ago!=null?` (last update ${ago}s ago)`:''}`;
+    let txt = `Running on Google's servers — ${s.done}/${s.total} done${s.failed?`, ${s.failed} skipped`:''}. Safe to close this site.${ago!=null?` (last update ${ago}s ago)`:''}`;
+    if (s.failed > 0 && s.lastError) txt += `\nLast error: ${s.lastError}`;
+    statusEl.textContent = txt;
+    statusEl.style.whiteSpace = 'pre-line';
   } else {
     startBtn.style.display = '';
     stopBtn.style.display = 'none';
     if (s.finishedAt && s.total) {
-      statusEl.textContent = `Done — optimized ${s.done}/${s.total}${s.failed?`, ${s.failed} skipped`:''}.`;
+      let txt = `Done — optimized ${s.done}/${s.total}${s.failed?`, ${s.failed} skipped`:''}.`;
+      if (s.failed > 0 && s.lastError) txt += `\nLast error: ${s.lastError}`;
+      statusEl.textContent = txt;
+      statusEl.style.whiteSpace = 'pre-line';
     } else if (s.total === 0 && s.finishedAt) {
       statusEl.textContent = `All photos already have a fast preview ✓`;
     } else {
@@ -3472,6 +3540,74 @@ async function stopOvernightOptimize(){
   await apiPost({ action:'stopOptimize' });
   stopOvernightStatusPolling();
   await fetchOptimizeStatus();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// GOOGLE DRIVE BACKUP — same trigger-based pattern as overnight optimize.
+// ══════════════════════════════════════════════════════════════════════════
+let backupStatus = { running:false, total:0, done:0, failed:0, startedAt:null, updatedAt:null, finishedAt:null };
+
+function renderDriveBackupUI(){
+  const startBtn = document.getElementById('drive-backup-btn');
+  const stopBtn = document.getElementById('drive-backup-stop-btn');
+  const statusEl = document.getElementById('drive-backup-status');
+  if (!startBtn || !stopBtn || !statusEl) return;
+  const s = backupStatus;
+  if (s.running) {
+    startBtn.style.display = 'none';
+    stopBtn.style.display = '';
+    const ago = s.updatedAt ? Math.max(0, Math.round((Date.now()-s.updatedAt)/1000)) : null;
+    let txt = `Backing up to Drive — ${s.done}/${s.total} done${s.failed?`, ${s.failed} failed`:''}. Safe to close this site.${ago!=null?` (last update ${ago}s ago)`:''}`;
+    if (s.failed > 0 && s.lastError) txt += `\nLast error: ${s.lastError}`;
+    statusEl.textContent = txt;
+    statusEl.style.whiteSpace = 'pre-line';
+  } else {
+    startBtn.style.display = '';
+    stopBtn.style.display = 'none';
+    if (s.finishedAt && s.total) {
+      let txt = `Done — backed up ${s.done}/${s.total}${s.failed?`, ${s.failed} failed`:''} to Drive.`;
+      if (s.failed > 0 && s.lastError) txt += `\nLast error: ${s.lastError}`;
+      statusEl.textContent = txt;
+      statusEl.style.whiteSpace = 'pre-line';
+    } else if (s.total === 0 && s.finishedAt) {
+      statusEl.textContent = `Everything is already backed up ✓`;
+    } else {
+      statusEl.textContent = '';
+    }
+  }
+}
+async function fetchBackupStatus(){
+  try {
+    const res = await fetch(`${API}?action=status`);
+    const json = await res.json();
+    if (json.backupStatus) { backupStatus = json.backupStatus; renderDriveBackupUI(); }
+  } catch(e) { /* silent — will retry on next poll */ }
+}
+let _backupPollTimer = null;
+function startBackupStatusPolling(){
+  stopBackupStatusPolling();
+  _backupPollTimer = setInterval(() => {
+    fetchBackupStatus();
+    if (!backupStatus.running) stopBackupStatusPolling();
+  }, 15000);
+}
+function stopBackupStatusPolling(){
+  if (_backupPollTimer) { clearInterval(_backupPollTimer); _backupPollTimer = null; }
+}
+async function startDriveBackup(){
+  const targets = data.photos.filter(p => p.url).length;
+  if (!confirm(`Start backing up ${targets} photo${targets!==1?'s':''} to Google Drive? This runs on Google's servers — you can close this site or turn off your device once it starts. Already-backed-up photos are skipped automatically, so this is safe to run again later for anything new.`)) return;
+  await apiPost({ action:'startBackup' });
+  document.getElementById('drive-backup-status').textContent = 'Starting… the first batch runs within about 5 minutes.';
+  backupStatus = { running:true, total:targets, done:0, failed:0, startedAt:Date.now(), updatedAt:Date.now(), finishedAt:null };
+  renderDriveBackupUI();
+  startBackupStatusPolling();
+}
+async function stopDriveBackup(){
+  if (!confirm('Stop the Drive backup? Photos already backed up stay saved — you can resume anytime.')) return;
+  await apiPost({ action:'stopBackup' });
+  stopBackupStatusPolling();
+  await fetchBackupStatus();
 }
 
 async function saveSettings() {
