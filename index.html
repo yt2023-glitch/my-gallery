@@ -2872,6 +2872,9 @@ function openLb(index,photos){
   document.getElementById('lb').classList.add('open');
   document.body.style.overflow='hidden';
   showLbPhoto();
+  // Warm the cache for nearby photos in the background so browsing and
+  // slideshow already feel fast, even before stepping through them once.
+  lbPreloadAlbum_(index);
 }
 function closeLb(){
   stopSlideshow();
@@ -2892,10 +2895,87 @@ function _restoreLbFocus(){
 }
 let _lbLoadToken = 0; // increments each navigation to cancel stale loads
 let _lbReturnFocus = null; // element to return focus to when lightbox closes
+
+// ══════════════════════════════════════════════════════════════════════════
+// LIGHTBOX IMAGE PRELOADING
+// Keeps a small in-memory cache of already-loaded Image objects for photos
+// viewed (or about to be viewed) in the current lightbox session, and
+// proactively preloads nearby photos while the current one is on screen.
+// This is what makes slideshow mode — and normal ←/→ browsing — feel
+// instant instead of showing a blank/loading image after every transition:
+// by the time you move to the next photo, its bytes are (in almost all
+// cases) already sitting in the browser's cache because they were quietly
+// fetched ahead of time. Holding a JS reference to each Image object also
+// stops the browser from silently evicting recently-viewed large photos
+// from its own image cache under memory pressure, which is what was
+// causing already-viewed photos to visibly reload when revisited later in
+// the same session.
+// ══════════════════════════════════════════════════════════════════════════
+const LB_PRELOAD_CACHE_LIMIT = 60; // cap how many full-res images we hold onto at once
+const lbPreloadCache = new Map();  // url -> Image object
+const lbPreloadOrder = [];         // insertion order, for LRU eviction
+
+function lbPreload(url){
+  if(!url) return null;
+  if(lbPreloadCache.has(url)){
+    const i=lbPreloadOrder.indexOf(url);
+    if(i>-1){ lbPreloadOrder.splice(i,1); lbPreloadOrder.push(url); } // bump to most-recently-used
+    return lbPreloadCache.get(url);
+  }
+  const im=new Image();
+  im.decoding='async';
+  im.src=url;
+  lbPreloadCache.set(url, im);
+  lbPreloadOrder.push(url);
+  if(lbPreloadOrder.length>LB_PRELOAD_CACHE_LIMIT){
+    const oldest=lbPreloadOrder.shift();
+    lbPreloadCache.delete(oldest);
+  }
+  return im;
+}
+function lbIsLoaded(url){
+  const im=lbPreloadCache.get(url);
+  return !!(im && im.complete && im.naturalWidth>0);
+}
+// Preloads the photos immediately around the given index, in both
+// directions, so browsing forward or backward — and slideshow — rarely
+// hits a cold load.
+function lbPreloadAround(index){
+  [index+1,index+2,index-1].forEach(i=>{
+    const p=lbPhotos[i];
+    if(p && p.url) lbPreload(p.url);
+  });
+}
+// Warms the cache for the rest of the currently-open album in the
+// background, a few photos at a time (outward from the starting photo), so
+// browsing/slideshow already feels fast even before stepping through each
+// photo once individually. Staggered so it doesn't fire off dozens of
+// large image requests all at once and choke the connection.
+function lbPreloadAlbum_(startIndex){
+  const order=[];
+  for(let d=1; d<=15; d++){
+    if(startIndex+d < lbPhotos.length) order.push(startIndex+d);
+    if(startIndex-d >= 0) order.push(startIndex-d);
+  }
+  let i=0;
+  const step=()=>{
+    if(i>=order.length) return;
+    const p=lbPhotos[order[i]]; i++;
+    if(p && p.url) lbPreload(p.url);
+    setTimeout(step, 250);
+  };
+  step();
+}
+
 function showLbPhoto(){
   const p=lbPhotos[lbIndex];
   const img=document.getElementById('lb-img');
   const token = ++_lbLoadToken; // unique token for this navigation
+
+  // Kick off preloading for this photo plus its neighbors right away — see
+  // the LIGHTBOX IMAGE PRELOADING block above.
+  lbPreload(p.url);
+  lbPreloadAround(lbIndex);
 
   // Update UI text immediately
   document.getElementById('lb-title').textContent=p.name;
@@ -2911,14 +2991,10 @@ function showLbPhoto(){
     ? (albumRotations[currentAlbum]||0) : 0;
   rot=(rotationMap[p.added]||0) + albumOffset; scale=1; panX=0; panY=0;
 
-  // Fade out current image
-  img.classList.add('fade');
   document.getElementById('lb-error-overlay').classList.remove('show');
 
-  // Detach old handlers and clear src so the previous image can never fire a stale onload
   img.onload = null;
   img.onerror = null;
-  img.src = '';
 
   const onLoaded = () => {
     // Ignore if user navigated away before this image finished loading
@@ -2934,6 +3010,22 @@ function showLbPhoto(){
     showLbErrorOverlay(p);
   };
 
+  if (lbIsLoaded(p.url)) {
+    // Already fully preloaded — swap straight in with no fade/delay, so
+    // browsing already-viewed photos (and slideshow, once it's warmed up a
+    // little) feels instant instead of replaying a loading transition
+    // every single time.
+    img.onload = onLoaded;
+    img.onerror = onError;
+    img.classList.remove('fade');
+    img.src = p.url;
+    applyTransform(false);
+    return;
+  }
+
+  // Not cached yet — fade out, brief delay, then load + fade in.
+  img.classList.add('fade');
+  img.src = '';
   img.onload = onLoaded;
   img.onerror = onError;
 
@@ -3031,11 +3123,32 @@ function startSlideshow(){
   ssRunning=true;
   document.getElementById('ss-btn').textContent='⏸';
   document.getElementById('ss-btn').classList.add('active');
+  scheduleNextSlide_();
+}
+function scheduleNextSlide_(){
+  if(!ssRunning) return;
   const spd=parseInt(document.getElementById('ss-speed').value);
-  ssTimer=setInterval(()=>{ if(lbIndex<lbPhotos.length-1) navigate(1); else{lbIndex=0;showLbPhoto();} },spd);
+  ssTimer=setTimeout(()=>advanceSlideWhenReady_(0), spd);
+}
+// Called when the slide interval elapses. If the next photo hasn't finished
+// preloading yet, waits a little longer (checking every 300ms, up to 3s
+// total) instead of immediately cutting to a blank/loading image — this is
+// what stops slideshow from advancing before the next photo is actually
+// ready to show. If it's still not ready after that grace period, advances
+// anyway and falls back to the normal fade-in-once-loaded behavior.
+function advanceSlideWhenReady_(graceElapsedMs){
+  if(!ssRunning) return;
+  const nextIndex = lbIndex<lbPhotos.length-1 ? lbIndex+1 : 0;
+  const nextPhoto = lbPhotos[nextIndex];
+  const MAX_GRACE_MS=3000, GRACE_STEP_MS=300;
+  if(nextPhoto && nextPhoto.url && !lbIsLoaded(nextPhoto.url) && graceElapsedMs<MAX_GRACE_MS){
+    ssTimer=setTimeout(()=>advanceSlideWhenReady_(graceElapsedMs+GRACE_STEP_MS), GRACE_STEP_MS);
+    return;
+  }
+  lbIndex=nextIndex; showLbPhoto(); scheduleNextSlide_();
 }
 function stopSlideshow(){
-  ssRunning=false; clearInterval(ssTimer);
+  ssRunning=false; clearTimeout(ssTimer); clearInterval(ssTimer);
   document.getElementById('ss-btn').textContent='▶';
   document.getElementById('ss-btn').classList.remove('active');
 }
