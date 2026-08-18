@@ -620,6 +620,10 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
       <input class="field" id="inp-url-name" placeholder="Name" style="flex:1;">
       <button class="btn primary" onclick="addPhotoByUrl()" style="flex:0 0 auto;">Add</button>
     </div>
+    <div style="display:flex;flex-direction:column;gap:5px;width:100%;margin-top:9px;">
+      <span style="font-size:11px;color:var(--muted);">Albums (select one or more):</span>
+      <div id="inp-url-album-list" style="display:flex;flex-direction:column;gap:4px;max-height:100px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 9px;"></div>
+    </div>
   </details>
 </div>
 
@@ -2028,18 +2032,25 @@ function renderAzScroller(show, groups, letters){
 }
 
 // ALBUMS
+// Renders the "select albums to add to" checkbox list into a given
+// container — shared by the file-upload panel (#inp-album-list) and the
+// "paste a URL manually" panel (#inp-url-album-list), so both upload paths
+// let you pick albums the same way.
+function renderAlbumCheckboxList_(containerId){
+  const alist=document.getElementById(containerId);
+  if(!alist) return;
+  alist.innerHTML='';
+  const sortedAlbums=[...data.albums].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+  sortedAlbums.forEach(a=>{
+    const lbl=document.createElement('label'); lbl.className='album-check-item';
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.value=a; cb.name='upload-album';
+    lbl.appendChild(cb); lbl.appendChild(document.createTextNode(a));
+    alist.appendChild(lbl);
+  });
+}
 function renderTabs(){
-  const alist=document.getElementById('inp-album-list');
-  if(alist){
-    alist.innerHTML='';
-    const sortedAlbums=[...data.albums].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
-    sortedAlbums.forEach(a=>{
-      const lbl=document.createElement('label'); lbl.className='album-check-item';
-      const cb=document.createElement('input'); cb.type='checkbox'; cb.value=a; cb.name='upload-album';
-      lbl.appendChild(cb); lbl.appendChild(document.createTextNode(a));
-      alist.appendChild(lbl);
-    });
-  }
+  renderAlbumCheckboxList_('inp-album-list');
+  renderAlbumCheckboxList_('inp-url-album-list');
 }
 function openAlbumModal(){renderAlbumList();document.getElementById('album-modal').classList.add('open');}
 function closeAlbumModal(){document.getElementById('album-modal').classList.remove('open');renderTabs();renderAlbumHome();}
@@ -3480,11 +3491,12 @@ function initDropZone(){
 async function addPhotoByUrl(){
   const url=document.getElementById('inp-url').value.trim();
   const name=document.getElementById('inp-url-name').value.trim()||'Photo';
-  const albums=[...document.querySelectorAll('#inp-album-list input[name=upload-album]:checked')].map(cb=>cb.value);
+  const albums=[...document.querySelectorAll('#inp-url-album-list input[name=upload-album]:checked')].map(cb=>cb.value);
   if(!url){showToast('Please paste an image URL.',true);return;}
   const added=Date.now(); const photo={url,name,albums,album:albums[0]||'',added};
   await apiPost({action:'add',...photo,albums}); data.photos.push(photo);
   document.getElementById('inp-url').value=''; document.getElementById('inp-url-name').value='';
+  document.querySelectorAll('#inp-url-album-list input[name=upload-album]:checked').forEach(cb=>cb.checked=false);
   showToast('Photo added! ✓'); renderGrid();
   heroSliderMaybeRefresh();
 }
