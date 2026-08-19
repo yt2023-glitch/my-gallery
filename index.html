@@ -1417,7 +1417,16 @@ async function apiGet() {
   } catch(e) { showToast('Could not load photos.',true); }
 }
 async function apiPost(payload) {
-  try { await fetch(API,{method:'POST',body:JSON.stringify({...payload, adminKey:ADMIN_KEY})}); }
+  try {
+    const res = await fetch(API,{method:'POST',body:JSON.stringify({...payload, adminKey:ADMIN_KEY})});
+    let json = null;
+    try { json = await res.json(); } catch(e) { /* server returned a non-JSON response, e.g. an Apps Script error page */ }
+    if (json && json.success === false) {
+      showToast('Save failed: ' + (json.error || 'unknown error'), true);
+    } else if (!res.ok && !json) {
+      showToast('Save failed: unexpected server response. Check ADMIN_KEY is set in Script Properties and the web app is redeployed.', true);
+    }
+  }
   catch(e) { showToast('Sync failed.',true); }
 }
 function saveAlbums(){ localStorage.setItem('gallery_albums',JSON.stringify(data.albums)); }
@@ -1444,7 +1453,6 @@ function goHome(){
   if(albumSelectMode) toggleAlbumSelectMode();
   document.getElementById('album-home-toolbar').style.display='flex';
   document.getElementById('album-home').style.display='';
-  showHeroSlider();
   document.getElementById('photo-view-header').classList.remove('visible');
   document.getElementById('sort-filter-bar').style.display='none';
   document.getElementById('gallery-wrap').style.display='none';
@@ -1456,7 +1464,12 @@ function goHome(){
   // Hide video grid if visible
   const vg = document.getElementById('video-album-grid');
   if (vg) vg.style.display = 'none';
+  // Render the grid FIRST — this is the actual content of the home screen.
+  // The hero slider above it is a nice-to-have; it's called after and
+  // isolated with its own try/catch (see showHeroSlider/initHeroSlider) so
+  // it can never prevent the grid itself from rendering.
   renderAlbumHome();
+  try { showHeroSlider(); } catch(e) { console.error('showHeroSlider failed:', e); }
 }
 function openAlbumView(albumKey){
   currentAlbum=albumKey;
@@ -1654,6 +1667,12 @@ function initHeroSlider(){
       if(entry) heroCardEls.push(entry);
     }
     startHeroAutoplay();
+  } catch(e) {
+    // The hero slider is a nice-to-have on top of the home screen, not the
+    // home screen itself — a failure here (e.g. a layout/timing edge case
+    // right as the page unlocks) must never be allowed to break anything
+    // else that runs after it (see showHeroSlider() / goHome()).
+    console.error('Hero slider failed to initialize:', e);
   } finally {
     heroInitLock=false;
   }
