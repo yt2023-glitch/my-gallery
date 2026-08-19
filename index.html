@@ -421,6 +421,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 
 /* ── PIN BADGE ─────────────────────────────────────────────────────────── */
 .pin-badge{position:absolute;top:6px;left:6px;background:var(--accent);color:#1a1200;font-size:10px;font-weight:600;padding:2px 6px;border-radius:999px;z-index:3;pointer-events:none;line-height:1.4;}
+.hidden-badge{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.72);color:#f0b0b0;font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;z-index:3;pointer-events:none;line-height:1.4;border:1px solid rgba(240,176,176,.35);}
 .album-card-btn.pin-btn.pinned{background:rgba(200,169,110,.85);color:#1a1200;}
 .album-card[draggable=true]{cursor:grab;}
 .album-card[draggable=true]:active{cursor:grabbing;}
@@ -679,6 +680,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <button class="btn cat-select-btn cat-select-actress" onclick="selectCategoryAlbums('actress')">👑 Actress</button>
   <button class="btn cat-select-btn cat-select-type" onclick="selectCategoryAlbums('type')">Type</button>
   <button class="btn cat-select-btn cat-select-random" onclick="selectCategoryAlbums('random')">Random</button>
+  <button class="btn" id="album-hide-btn" onclick="toggleHideSelectedAlbums()">🙈 Hide</button>
   <button class="btn primary" onclick="downloadSelectedAlbumsZip()">⬇ Download ZIP</button>
   <button class="btn" style="margin-left:auto;" onclick="toggleAlbumSelectMode()">Done</button>
 </div>
@@ -1284,6 +1286,13 @@ let photoHashes = JSON.parse(localStorage.getItem('gallery_hashes')||'{}'); // c
 let existingUrls = new Set(); // built from loaded photos — catches re-uploads of same ImgBB URL
 let pinnedAlbums = new Set(JSON.parse(localStorage.getItem('gallery_pinned')||'[]'));
 let pinnedOrder = JSON.parse(localStorage.getItem('gallery_pinned_order')||'[]');
+// Albums hidden from the public viewer page (still fully visible/editable
+// here on the admin page). 'video' is the special key for the Videos card.
+let hiddenAlbums = new Set(JSON.parse(localStorage.getItem('gallery_hidden_albums')||'[]'));
+function saveHiddenAlbums(){
+  localStorage.setItem('gallery_hidden_albums', JSON.stringify([...hiddenAlbums]));
+  apiPost({ action:'settings', settings:{ hiddenAlbums: JSON.stringify([...hiddenAlbums]) } });
+}
 function savePinned(){
   localStorage.setItem('gallery_pinned',JSON.stringify([...pinnedAlbums]));
   pinnedOrder = pinnedOrder.filter(a=>pinnedAlbums.has(a));
@@ -1354,9 +1363,22 @@ async function apiGet() {
     });
     // Build a set of all known URLs so we can detect re-uploads of the same image
     existingUrls = new Set(data.photos.map(p => p.url));
+    // Per-photo rotation — sheet is source of truth, overrides localStorage,
+    // so an orientation fix made on the admin page shows correctly on every
+    // other device/browser (including the public viewer) instead of only
+    // the browser that made the fix.
+    data.photos.forEach(p => {
+      if (p.rotation !== undefined && p.rotation !== '') rotationMap[p.added] = Number(p.rotation) || 0;
+    });
+    localStorage.setItem('gallery_rotations', JSON.stringify(rotationMap));
     const fromPhotos = [...new Set(data.photos.flatMap(p=>p.albums).filter(Boolean))];
-    const saved = JSON.parse(localStorage.getItem('gallery_albums')||'[]');
-    data.albums = [...new Set([...saved,...fromPhotos])];
+    // Full album list (including albums with zero photos so far) — sheet is
+    // source of truth once synced, so an album created on one device shows
+    // up everywhere. Falls back to localStorage for albums created before
+    // this sync existed / before the first save.
+    const localAlbums = JSON.parse(localStorage.getItem('gallery_albums')||'[]');
+    const knownAlbums = json.settings && json.settings.knownAlbums ? (()=>{ try { return JSON.parse(json.settings.knownAlbums); } catch(e) { return []; } })() : [];
+    data.albums = [...new Set([...localAlbums, ...knownAlbums, ...fromPhotos])];
     // Load covers from sheet
     if (json.covers) {
       albumCovers = json.covers;
@@ -1381,6 +1403,21 @@ async function apiGet() {
         try {
           albumCategories = JSON.parse(json.settings.albumCategories);
           localStorage.setItem('gallery_album_categories', JSON.stringify(albumCategories));
+        } catch(e) {}
+      }
+      // Per-album rotation offset — sheet is source of truth, overrides
+      // localStorage, same reasoning as per-photo rotation above.
+      if (json.settings.albumRotations) {
+        try {
+          albumRotations = JSON.parse(json.settings.albumRotations);
+          localStorage.setItem('gallery_album_rotations', JSON.stringify(albumRotations));
+        } catch(e) {}
+      }
+      // Hidden albums — sheet is source of truth, overrides localStorage
+      if (json.settings.hiddenAlbums) {
+        try {
+          hiddenAlbums = new Set(JSON.parse(json.settings.hiddenAlbums));
+          localStorage.setItem('gallery_hidden_albums', JSON.stringify([...hiddenAlbums]));
         } catch(e) {}
       }
       // Hero slider source config — sheet is source of truth, overrides localStorage
@@ -1816,12 +1853,16 @@ function renderAlbumHome(){
     const savedAdj = albumCoverPositions[key];
     const safeKey=key.replace(/'/g,"\\'");
     const pinBtn=isPinnable?`<button class="album-card-btn pin-btn${isPinned?' pinned':''}" title="${isPinned?'Unpin':'Pin'} album" onclick="event.stopPropagation();togglePinAlbum('${safeKey}',this)">📌</button>`:'';
-    const actions=!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"><div class="album-card-actions">${pinBtn}<button class="album-card-btn" title="Adjust cover" onclick="event.stopPropagation();openCoverAdjust('${safeKey}')">✥</button><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${safeKey}')">⬇</button></div>`:'';
+    const isHidden=hiddenAlbums.has(key);
+    const hiddenBadge=isHidden?`<div class="hidden-badge" title="Hidden from the public viewer page">🙈 Hidden</div>`:'';
+    const isSelected=selectedAlbums.has(key);
+    const actions=!isSpecial?`<input type="checkbox" class="album-card-checkbox" data-key="${key}"${isSelected?' checked':''}><div class="album-card-actions">${pinBtn}<button class="album-card-btn" title="Adjust cover" onclick="event.stopPropagation();openCoverAdjust('${safeKey}')">✥</button><button class="album-card-btn" title="Download album as ZIP" onclick="event.stopPropagation();downloadAlbumZip('${safeKey}')">⬇</button></div>`:'';
     const pinBadge=isPinned?`<div class="pin-badge">📌</div>`:'';
     const catBadge=(!isSpecial&&data.albums.includes(key))?makeCategoryBadge(getAlbumCategory(key)):'';
+    if(isSelected) card.classList.add('album-selected');
     if(coverUrl){
       card.setAttribute('tabindex','0');
-      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy" style="opacity:0;"></div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}${pinBadge}${catBadge}`;
+      card.innerHTML=`<div class="cover-wrap"><img src="${coverUrl}" alt="${label}" loading="lazy" style="opacity:0;"></div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}${pinBadge}${catBadge}${hiddenBadge}`;
       const cardImg = card.querySelector('img');
       const applyAdjust = () => {
         const cardSize = card.getBoundingClientRect().width || card.offsetWidth || 0;
@@ -1850,7 +1891,7 @@ function renderAlbumHome(){
       else { cardImg.onload = applyAdjust; }
     } else {
       card.setAttribute('tabindex','0');
-      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}${pinBadge}${catBadge}`;
+      card.innerHTML=`<div class="album-card-placeholder">🖼</div><div class="album-card-overlay"><div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">${label}</div><div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${count} photo${count!==1?'s':''}</div></div>${actions}${pinBadge}${catBadge}${hiddenBadge}`;
     }
     const cb=card.querySelector('.album-card-checkbox');
     if(cb) cb.addEventListener('change',()=>{
@@ -1886,10 +1927,14 @@ function renderAlbumHome(){
   // ── VIDEOS default album (always pinned, next to All Photos) ────────────
   if(catFilter==='all'&&(!query||'videos'.includes(query)||'video'.includes(query))){
     const videoCover = VIDEO_ITEMS.length ? VIDEO_ITEMS[0].thumb : null;
+    const videoHidden = hiddenAlbums.has('video');
+    const videoSelected = selectedAlbums.has('video');
     const videoCard = document.createElement('div');
-    videoCard.className = 'album-card';
+    videoCard.className = 'album-card' + (videoSelected?' album-selected':'');
     videoCard.setAttribute('tabindex','0');
-    videoCard.innerHTML = videoCover
+    const videoActions = `<input type="checkbox" class="album-card-checkbox" data-key="video"${videoSelected?' checked':''}>`;
+    const videoHiddenBadge = videoHidden?`<div class="hidden-badge" title="Hidden from the public viewer page">🙈 Hidden</div>`:'';
+    videoCard.innerHTML = (videoCover
       ? `<div class="cover-wrap"><img src="${videoCover}" alt="Videos" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"></div>
          <div class="album-card-overlay">
            <div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">🎬 Videos</div>
@@ -1899,9 +1944,18 @@ function renderAlbumHome(){
          <div class="album-card-overlay">
            <div class="album-card-name" style="font-family:'Playfair Display',serif;font-size:14px;color:#fff;font-weight:600;">🎬 Videos</div>
            <div class="album-card-count" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${VIDEO_ITEMS.length} video${VIDEO_ITEMS.length!==1?'s':''}</div>
-         </div>`;
-    videoCard.addEventListener('click', () => { if(!albumSelectMode) openVideoAlbum(); });
-    videoCard.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){e.preventDefault();if(!albumSelectMode)openVideoAlbum();} });
+         </div>`) + videoActions + videoHiddenBadge;
+    const videoCb = videoCard.querySelector('.album-card-checkbox');
+    videoCb.addEventListener('change',()=>{
+      if(videoCb.checked){selectedAlbums.add('video');videoCard.classList.add('album-selected');}
+      else{selectedAlbums.delete('video');videoCard.classList.remove('album-selected');}
+      updateAlbumSelectedCount();
+    });
+    videoCard.addEventListener('click', () => {
+      if(albumSelectMode){ videoCb.checked=!videoCb.checked; videoCb.dispatchEvent(new Event('change')); return; }
+      openVideoAlbum();
+    });
+    videoCard.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){e.preventDefault();if(albumSelectMode){videoCb.checked=!videoCb.checked;videoCb.dispatchEvent(new Event('change'));}else openVideoAlbum();} });
     pinnedGrid.appendChild(videoCard);
   }
   const starredPhotos=data.photos.filter(p=>starredIds.has(String(p.added)));
@@ -2114,16 +2168,29 @@ function createAlbum(){
   albumCategories[name]=catSel?catSel.value:'random';
   inp.value='';
   saveAlbums(); saveAlbumCategories(); renderTabs(); renderAlbumList(); renderAlbumHome();
+  // Persist the full album list (including this new, still-empty album) to
+  // the sheet so it shows up on every other device/browser — including the
+  // public viewer page — right away, instead of only appearing there once
+  // a photo happens to get tagged with it.
+  apiPost({ action:'settings', settings:{ knownAlbums: JSON.stringify(data.albums) } });
 }
 function deleteAlbum(i){
   const name=data.albums[i];
   if(!confirm(`Delete album "${name}"? Photos won't be deleted.`)) return;
   data.albums.splice(i,1);
-  data.photos.forEach(p=>{if(p.albums) p.albums=p.albums.filter(a=>a!==name);});
+  const affected=data.photos.filter(p=>p.albums && p.albums.includes(name));
+  affected.forEach(p=>{ p.albums=p.albums.filter(a=>a!==name); });
   delete albumCategories[name];
   if(currentAlbum===name) currentAlbum='all';
   saveAlbums(); saveAlbumCategories(); renderTabs(); renderAlbumList(); renderAlbumHome();
   heroSliderMaybeRefresh();
+  // Persist the updated album list, AND strip this album's tag from every
+  // affected photo's row in the sheet. Without this, the deletion was only
+  // ever a local, in-memory illusion — a reload (or the public viewer page,
+  // which reads the sheet independently) would still show the album, since
+  // the underlying photo tags were never actually removed server-side.
+  apiPost({ action:'settings', settings:{ knownAlbums: JSON.stringify(data.albums) } });
+  affected.forEach(p=>{ apiPost({ action:'move', added:p.added, albums:p.albums }); });
 }
 
 // ALBUM SELECT MODE
@@ -2140,6 +2207,22 @@ function toggleAlbumSelectMode(){
 }
 function updateAlbumSelectedCount(){
   document.getElementById('album-selected-count').textContent=`${selectedAlbums.size} selected`;
+  const hideBtn=document.getElementById('album-hide-btn');
+  if(hideBtn){
+    const allHidden = selectedAlbums.size>0 && [...selectedAlbums].every(k=>hiddenAlbums.has(k));
+    hideBtn.textContent = allHidden ? '👁 Unhide' : '🙈 Hide';
+  }
+}
+// Hides (or unhides) every currently-selected album from the public viewer
+// page. Hidden albums stay fully visible and editable here on the admin
+// page — they're just excluded from what the viewer page loads.
+function toggleHideSelectedAlbums(){
+  if(!selectedAlbums.size){ showToast('No albums selected.',true); return; }
+  const allHidden=[...selectedAlbums].every(k=>hiddenAlbums.has(k));
+  selectedAlbums.forEach(k=>{ if(allHidden) hiddenAlbums.delete(k); else hiddenAlbums.add(k); });
+  saveHiddenAlbums();
+  renderAlbumHome();
+  showToast(allHidden ? 'Album(s) unhidden — visible to viewers again ✓' : 'Album(s) hidden from viewers ✓');
 }
 function selectAllAlbums(){
   document.querySelectorAll('.album-card-checkbox').forEach(cb=>{
@@ -3187,7 +3270,15 @@ function applyTransform(animate){
 }
 function rotate(deg){
   rot+=deg;
-  const p=lbPhotos[lbIndex]; if(p){ rotationMap[p.added]=rot; localStorage.setItem('gallery_rotations',JSON.stringify(rotationMap)); }
+  const p=lbPhotos[lbIndex];
+  if(p){
+    rotationMap[p.added]=rot;
+    localStorage.setItem('gallery_rotations',JSON.stringify(rotationMap));
+    // Persist to the sheet so this orientation fix shows correctly on every
+    // other device/browser — including the public viewer page — not just
+    // this one.
+    apiPost({action:'rotation', added:p.added, rotation:rot});
+  }
   applyTransform();
 }
 
@@ -3196,6 +3287,9 @@ function rotateAlbum(deg){
   if(!currentAlbum || currentAlbum==='starred') return;
   albumRotations[currentAlbum] = ((albumRotations[currentAlbum]||0) + deg + 360) % 360;
   localStorage.setItem('gallery_album_rotations', JSON.stringify(albumRotations));
+  // Persist to the sheet (Settings tab) so this album-wide rotation shows
+  // correctly on every other device/browser, same reasoning as rotate() above.
+  apiPost({ action:'settings', settings:{ albumRotations: JSON.stringify(albumRotations) } });
   // If lightbox is open, update live
   if(document.getElementById('lb').classList.contains('open')){
     const p=lbPhotos[lbIndex];
