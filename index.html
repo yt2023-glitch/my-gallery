@@ -136,8 +136,20 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .slideshow-controls{display:flex;align-items:center;gap:7px;}
 .ss-speed{background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);padding:3px 7px;border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif;}
 .ss-speed option{background:#111;}
-#album-modal,#rename-modal,#move-modal,#bulk-assign-modal,#cover-pick-modal,#recycle-modal,#settings-modal,#add-video-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99990;align-items:center;justify-content:center;}
-#album-modal.open,#rename-modal.open,#move-modal.open,#bulk-assign-modal.open,#cover-pick-modal.open,#recycle-modal.open,#settings-modal.open,#add-video-modal.open{display:flex;}
+#album-modal,#rename-modal,#move-modal,#bulk-assign-modal,#cover-pick-modal,#recycle-modal,#settings-modal,#add-video-modal,#video-info-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99990;align-items:center;justify-content:center;}
+#album-modal.open,#rename-modal.open,#move-modal.open,#bulk-assign-modal.open,#cover-pick-modal.open,#recycle-modal.open,#settings-modal.open,#add-video-modal.open,#video-info-modal.open{display:flex;}
+.field-group{display:flex;flex-direction:column;gap:0;}
+.modal-field-label{font-size:11px;color:var(--muted);margin-bottom:5px;}
+.chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:4px 6px 4px 11px;font-size:12px;color:var(--text);}
+.chip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 3px;}
+.chip button:hover{color:#e74c3c;}
+.ts-list{display:flex;flex-direction:column;gap:6px;margin-top:7px;}
+.ts-row{display:flex;align-items:center;gap:9px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;}
+.ts-row .ts-time{color:var(--accent);font-weight:600;flex:0 0 auto;}
+.ts-row .ts-desc{flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ts-row button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0;flex:0 0 auto;}
+.ts-row button:hover{color:#e74c3c;}
 .modal-create-error{font-size:11px;color:#e74c3c;min-height:14px;margin-top:-6px;}
 .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:22px;width:420px;max-width:95vw;max-height:80vh;overflow-y:auto;display:flex;flex-direction:column;gap:13px;}
 .modal-box h3{font-family:'Playfair Display',serif;font-size:16px;color:var(--accent2);}
@@ -791,6 +803,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <div class="vlb-top">
     <div class="vlb-title" id="vlb-title"></div>
     <div class="vlb-controls">
+      <button class="vlb-btn" id="vlb-info-btn" title="Video info" onclick="openVideoInfoModal(vlbIndex)">ⓘ</button>
       <button class="vlb-btn" id="vlb-rotate-btn" title="Rotate 90° (R)" onclick="rotateVideoStep()">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/></svg>
       </button>
@@ -807,6 +820,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
   <button class="vlb-nav" id="vlb-next" onclick="navigateVideo(1)">›</button>
   <!-- Floating pill: visible whenever not at 0° -->
   <div id="vlb-float-bar">
+    <button class="vlb-btn" title="Video info" onclick="openVideoInfoModal(vlbIndex)">ⓘ</button>
     <button class="vlb-btn" title="Rotate 90° (R)" onclick="rotateVideoStep()">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/></svg>
     </button>
@@ -846,7 +860,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 </div>
 
 <div id="add-video-modal">
-  <div class="modal-box" style="width:420px;">
+  <div class="modal-box" style="width:460px;">
     <h3 id="add-video-modal-title">Add Video</h3>
     <p style="font-size:12px;color:var(--muted);margin-top:-4px;">Appears in the 🎬 Videos section for everyone, including the public viewer page.</p>
     <input class="field" id="video-id-input" placeholder="id — unique ID from your video host">
@@ -857,10 +871,47 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
       <input class="field" id="video-duration-input" placeholder="duration — e.g. 07:06 (optional)">
       <input class="field" id="video-resolution-input" placeholder="resolution — e.g. 1280x742 (optional)">
     </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
+    <p style="font-size:12px;color:var(--muted);margin:-6px 0 0;">Shown when someone taps the ⓘ info button on this video.</p>
+
+    <input class="field" id="video-original-name-input" placeholder="Original Movie/Series Name *">
+    <div class="row">
+      <input class="field" id="video-ott-input" placeholder="OTT Platform (optional)">
+      <input class="field" id="video-year-input" placeholder="Year of release (optional)" style="flex:0 0 150px;">
+    </div>
+
+    <div class="field-group">
+      <label class="modal-field-label">Top Cast *</label>
+      <div class="row">
+        <input class="field" id="video-cast-input" placeholder="Actor/actress name" onkeydown="if(event.key==='Enter'){event.preventDefault();addCastEntry();}">
+        <button class="btn" onclick="addCastEntry()" style="flex:0 0 auto;">+ Add</button>
+      </div>
+      <div id="video-cast-list" class="chip-list"></div>
+    </div>
+
+    <div class="field-group">
+      <label class="modal-field-label">Timestamps for Best Scenes (optional)</label>
+      <div class="row">
+        <input class="field" id="video-ts-time-input" placeholder="Timestamp e.g. 12:34" style="flex:0 0 120px;">
+        <input class="field" id="video-ts-desc-input" placeholder="Scene description" onkeydown="if(event.key==='Enter'){event.preventDefault();addTimestampEntry();}">
+        <button class="btn" onclick="addTimestampEntry()" style="flex:0 0 auto;">+ Add</button>
+      </div>
+      <div id="video-ts-list" class="ts-list"></div>
+    </div>
+
     <div class="row" style="justify-content:flex-end;">
       <button class="btn" onclick="closeAddVideoModal()">Cancel</button>
       <button class="btn primary" id="video-save-btn" onclick="saveNewVideo()">Save</button>
     </div>
+  </div>
+</div>
+
+<div id="video-info-modal">
+  <div class="modal-box" style="width:420px;">
+    <h3 id="video-info-title">Video Info</h3>
+    <div id="video-info-body" style="display:flex;flex-direction:column;gap:11px;font-size:13px;line-height:1.5;"></div>
+    <button class="btn" onclick="closeVideoInfoModal()" style="align-self:flex-end;">Close</button>
   </div>
 </div>
 
@@ -1182,6 +1233,7 @@ function openVideoAlbum() {
       ${v.duration ? `<div class="video-thumb-meta">${v.duration}</div>` : ''}
       <div class="video-thumb-title">${v.title}</div>
       <div class="video-thumb-admin-actions">
+        <button class="video-thumb-action" title="Video info" onclick="event.stopPropagation();openVideoInfoModal(${i})">ⓘ</button>
         <button class="video-thumb-action" title="Edit video" onclick="event.stopPropagation();openEditVideoModal(${i})">✎</button>
         <button class="video-thumb-action video-thumb-delete" title="Delete video" onclick="event.stopPropagation();deleteVideoItem(${i})">🗑</button>
       </div>
@@ -1200,25 +1252,75 @@ function openVideoAlbum() {
 // on your Google Sheet, not just this browser's localStorage, so it's the
 // same on every device you open the site on, including the viewer page.
 let editingVideoIndex = null; // null = add mode, otherwise index into VIDEO_ITEMS being edited
+let videoCastDraft = [];       // working cast list while the add/edit modal is open
+let videoTimestampDraft = [];  // working timestamp list ({time,desc}) while the modal is open
 function saveVideoItems(){
   apiPost({ action:'settings', settings:{ videoItems: JSON.stringify(VIDEO_ITEMS) } });
 }
+function renderCastDraftList(){
+  const el=document.getElementById('video-cast-list');
+  el.innerHTML = videoCastDraft.map((name,i)=>
+    `<span class="chip">${name}<button title="Remove" onclick="removeCastEntry(${i})">✕</button></span>`
+  ).join('');
+}
+function addCastEntry(){
+  const inp=document.getElementById('video-cast-input');
+  const name=inp.value.trim();
+  if(!name) return;
+  if(videoCastDraft.some(c=>c.toLowerCase()===name.toLowerCase())){ inp.value=''; return; }
+  videoCastDraft.push(name);
+  inp.value='';
+  renderCastDraftList();
+  inp.focus();
+}
+function removeCastEntry(i){
+  videoCastDraft.splice(i,1);
+  renderCastDraftList();
+}
+function renderTimestampDraftList(){
+  const el=document.getElementById('video-ts-list');
+  el.innerHTML = videoTimestampDraft.map((t,i)=>
+    `<div class="ts-row"><span class="ts-time">${t.time}</span><span class="ts-desc" title="${t.desc}">${t.desc}</span><button title="Remove" onclick="removeTimestampEntry(${i})">✕</button></div>`
+  ).join('');
+}
+function addTimestampEntry(){
+  const timeInp=document.getElementById('video-ts-time-input');
+  const descInp=document.getElementById('video-ts-desc-input');
+  const time=timeInp.value.trim(), desc=descInp.value.trim();
+  if(!time||!desc){ showToast('Enter both a timestamp and a scene description.',true); return; }
+  videoTimestampDraft.push({time,desc});
+  timeInp.value=''; descInp.value='';
+  renderTimestampDraftList();
+  timeInp.focus();
+}
+function removeTimestampEntry(i){
+  videoTimestampDraft.splice(i,1);
+  renderTimestampDraftList();
+}
 function openAddVideoModal(){
   editingVideoIndex = null;
+  videoCastDraft = [];
+  videoTimestampDraft = [];
   document.getElementById('add-video-modal-title').textContent = 'Add Video';
   document.getElementById('video-save-btn').textContent = 'Save';
-  ['video-id-input','video-title-input','video-thumb-input','video-embedurl-input','video-duration-input','video-resolution-input']
+  ['video-id-input','video-title-input','video-thumb-input','video-embedurl-input','video-duration-input','video-resolution-input',
+   'video-original-name-input','video-ott-input','video-year-input','video-cast-input','video-ts-time-input','video-ts-desc-input']
     .forEach(id=>{ document.getElementById(id).value=''; });
+  renderCastDraftList();
+  renderTimestampDraftList();
   document.getElementById('add-video-modal').classList.add('open');
   document.getElementById('video-id-input').focus();
 }
 // Opens the same modal pre-filled with an existing video's values — handy
-// for swapping in a fresh embedUrl/thumb once the old link expires, without
-// having to delete and re-add the video (and lose its place in the list).
+// for swapping in a fresh embedUrl/thumb once the old link expires, or
+// updating its info, without having to delete and re-add the video (and
+// lose its place in the list).
 function openEditVideoModal(i){
   const v = VIDEO_ITEMS[i];
   if(!v) return;
   editingVideoIndex = i;
+  videoCastDraft = Array.isArray(v.cast) ? [...v.cast] : [];
+  videoTimestampDraft = Array.isArray(v.timestamps) ? v.timestamps.map(t=>({...t})) : [];
   document.getElementById('add-video-modal-title').textContent = 'Edit Video';
   document.getElementById('video-save-btn').textContent = 'Save Changes';
   document.getElementById('video-id-input').value = v.id || '';
@@ -1227,12 +1329,22 @@ function openEditVideoModal(i){
   document.getElementById('video-embedurl-input').value = v.embedUrl || '';
   document.getElementById('video-duration-input').value = v.duration || '';
   document.getElementById('video-resolution-input').value = v.resolution || '';
+  document.getElementById('video-original-name-input').value = v.originalName || '';
+  document.getElementById('video-ott-input').value = v.ottPlatform || '';
+  document.getElementById('video-year-input').value = v.releaseYear || '';
+  document.getElementById('video-cast-input').value = '';
+  document.getElementById('video-ts-time-input').value = '';
+  document.getElementById('video-ts-desc-input').value = '';
+  renderCastDraftList();
+  renderTimestampDraftList();
   document.getElementById('add-video-modal').classList.add('open');
   document.getElementById('video-id-input').focus();
 }
 function closeAddVideoModal(){
   document.getElementById('add-video-modal').classList.remove('open');
   editingVideoIndex = null;
+  videoCastDraft = [];
+  videoTimestampDraft = [];
 }
 function saveNewVideo(){
   const id=document.getElementById('video-id-input').value.trim();
@@ -1241,18 +1353,37 @@ function saveNewVideo(){
   const embedUrl=document.getElementById('video-embedurl-input').value.trim();
   const duration=document.getElementById('video-duration-input').value.trim();
   const resolution=document.getElementById('video-resolution-input').value.trim();
+  const originalName=document.getElementById('video-original-name-input').value.trim();
+  const ottPlatform=document.getElementById('video-ott-input').value.trim();
+  const releaseYear=document.getElementById('video-year-input').value.trim();
+  // Catch anything still sitting in the cast input that wasn't explicitly
+  // added with the + button — easy to forget to click it before saving.
+  const pendingCast=document.getElementById('video-cast-input').value.trim();
+  if(pendingCast && !videoCastDraft.some(c=>c.toLowerCase()===pendingCast.toLowerCase())) videoCastDraft.push(pendingCast);
   if(!id||!title||!thumb||!embedUrl){
     showToast('id, title, thumb, and embedUrl are all required.',true); return;
+  }
+  if(!originalName){
+    showToast('Original Movie/Series Name is required.',true); return;
+  }
+  if(!videoCastDraft.length){
+    showToast('Add at least one cast member.',true); return;
   }
   const dupIndex = VIDEO_ITEMS.findIndex(v=>v.id===id);
   if(dupIndex!==-1 && dupIndex!==editingVideoIndex){
     showToast(`A video with id "${id}" already exists.`,true); return;
   }
+  const videoObj = {
+    id, title, thumb, embedUrl, duration, resolution,
+    originalName, ottPlatform, releaseYear,
+    cast: [...videoCastDraft],
+    timestamps: [...videoTimestampDraft]
+  };
   if(editingVideoIndex!==null){
-    VIDEO_ITEMS[editingVideoIndex] = { id, title, thumb, embedUrl, duration, resolution };
+    VIDEO_ITEMS[editingVideoIndex] = videoObj;
     showToast('Video updated ✓');
   } else {
-    VIDEO_ITEMS.push({ id, title, thumb, embedUrl, duration, resolution });
+    VIDEO_ITEMS.push(videoObj);
     showToast('Video added ✓');
   }
   saveVideoItems();
@@ -1269,6 +1400,29 @@ function deleteVideoItem(i){
   showToast('Video deleted ✓');
   if(currentAlbum==='__videos__') openVideoAlbum();
   if(document.getElementById('album-home').style.display!=='none') renderAlbumHome();
+}
+// Read-only info popup — shown via the ⓘ button on a video thumbnail or in
+// the video player toolbar. Just displays what's stored; editing happens
+// through the regular Edit (✎) button.
+function openVideoInfoModal(i){
+  const v = VIDEO_ITEMS[i];
+  if(!v) return;
+  document.getElementById('video-info-title').textContent = v.title || 'Video Info';
+  const rows = [];
+  rows.push(`<div><span style="color:var(--muted);">Original Name:</span> <strong>${v.originalName || '—'}</strong></div>`);
+  if(v.ottPlatform) rows.push(`<div><span style="color:var(--muted);">OTT Platform:</span> ${v.ottPlatform}</div>`);
+  if(v.releaseYear) rows.push(`<div><span style="color:var(--muted);">Year of Release:</span> ${v.releaseYear}</div>`);
+  rows.push(`<div><span style="color:var(--muted);">Top Cast:</span> ${(v.cast&&v.cast.length) ? v.cast.join(', ') : '—'}</div>`);
+  if(v.timestamps && v.timestamps.length){
+    rows.push(`<div><span style="color:var(--muted);">Best Scenes:</span><div style="margin-top:7px;display:flex;flex-direction:column;gap:6px;">${
+      v.timestamps.map(t=>`<div style="display:flex;gap:9px;"><span style="color:var(--accent);font-weight:600;flex:0 0 auto;">${t.time}</span><span>${t.desc}</span></div>`).join('')
+    }</div></div>`);
+  }
+  document.getElementById('video-info-body').innerHTML = rows.join('');
+  document.getElementById('video-info-modal').classList.add('open');
+}
+function closeVideoInfoModal(){
+  document.getElementById('video-info-modal').classList.remove('open');
 }
 
 function openVideoLb(index) {
