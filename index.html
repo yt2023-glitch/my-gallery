@@ -282,7 +282,10 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 
 /* ── VIDEO ALBUM ────────────────────────────────────────────────────────── */
 .video-thumb{position:relative;border-radius:8px;overflow:hidden;cursor:pointer;background:#111;border:1px solid var(--border);aspect-ratio:16/9;transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease;z-index:1;}
-.video-thumb-delete{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.25);color:#f0b0b0;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:4;}
+.video-thumb-admin-actions{position:absolute;top:6px;right:6px;display:flex;gap:6px;z-index:4;}
+.video-thumb-action{width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.25);color:#eee;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.video-thumb-action:hover{background:rgba(255,255,255,.2);}
+.video-thumb-delete{color:#f0b0b0;}
 .video-thumb-delete:hover{background:rgba(200,40,40,.85);color:#fff;}
 .video-thumb:hover{transform:scale(1.05) translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,.6),0 0 0 2px var(--accent);z-index:10;}
 .video-thumb img{width:100%;height:100%;object-fit:cover;display:block;border-radius:8px;}
@@ -856,7 +859,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
     </div>
     <div class="row" style="justify-content:flex-end;">
       <button class="btn" onclick="closeAddVideoModal()">Cancel</button>
-      <button class="btn primary" onclick="saveNewVideo()">Save</button>
+      <button class="btn primary" id="video-save-btn" onclick="saveNewVideo()">Save</button>
     </div>
   </div>
 </div>
@@ -1178,9 +1181,12 @@ function openVideoAlbum() {
       </div>
       ${v.duration ? `<div class="video-thumb-meta">${v.duration}</div>` : ''}
       <div class="video-thumb-title">${v.title}</div>
-      <button class="video-thumb-delete" title="Delete video" onclick="event.stopPropagation();deleteVideoItem(${i})">🗑</button>
+      <div class="video-thumb-admin-actions">
+        <button class="video-thumb-action" title="Edit video" onclick="event.stopPropagation();openEditVideoModal(${i})">✎</button>
+        <button class="video-thumb-action video-thumb-delete" title="Delete video" onclick="event.stopPropagation();deleteVideoItem(${i})">🗑</button>
+      </div>
     `;
-    div.addEventListener('click', (e) => { if(e.target.closest('.video-thumb-delete')) return; openVideoLb(i); });
+    div.addEventListener('click', (e) => { if(e.target.closest('.video-thumb-admin-actions')) return; openVideoLb(i); });
     div.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openVideoLb(i); } });
     vg.appendChild(div);
   });
@@ -1190,18 +1196,43 @@ function openVideoAlbum() {
 // Videos are stored the same way as the music playlist and other synced
 // settings: the whole VIDEO_ITEMS list is saved as one JSON blob under the
 // 'videoItems' key in the sheet's Settings tab (see apiGet for the read
-// side, and the migration push there too).
+// side, and the migration push there too) — that's real, permanent storage
+// on your Google Sheet, not just this browser's localStorage, so it's the
+// same on every device you open the site on, including the viewer page.
+let editingVideoIndex = null; // null = add mode, otherwise index into VIDEO_ITEMS being edited
 function saveVideoItems(){
   apiPost({ action:'settings', settings:{ videoItems: JSON.stringify(VIDEO_ITEMS) } });
 }
 function openAddVideoModal(){
+  editingVideoIndex = null;
+  document.getElementById('add-video-modal-title').textContent = 'Add Video';
+  document.getElementById('video-save-btn').textContent = 'Save';
   ['video-id-input','video-title-input','video-thumb-input','video-embedurl-input','video-duration-input','video-resolution-input']
     .forEach(id=>{ document.getElementById(id).value=''; });
   document.getElementById('add-video-modal').classList.add('open');
   document.getElementById('video-id-input').focus();
 }
+// Opens the same modal pre-filled with an existing video's values — handy
+// for swapping in a fresh embedUrl/thumb once the old link expires, without
+// having to delete and re-add the video (and lose its place in the list).
+function openEditVideoModal(i){
+  const v = VIDEO_ITEMS[i];
+  if(!v) return;
+  editingVideoIndex = i;
+  document.getElementById('add-video-modal-title').textContent = 'Edit Video';
+  document.getElementById('video-save-btn').textContent = 'Save Changes';
+  document.getElementById('video-id-input').value = v.id || '';
+  document.getElementById('video-title-input').value = v.title || '';
+  document.getElementById('video-thumb-input').value = v.thumb || '';
+  document.getElementById('video-embedurl-input').value = v.embedUrl || '';
+  document.getElementById('video-duration-input').value = v.duration || '';
+  document.getElementById('video-resolution-input').value = v.resolution || '';
+  document.getElementById('add-video-modal').classList.add('open');
+  document.getElementById('video-id-input').focus();
+}
 function closeAddVideoModal(){
   document.getElementById('add-video-modal').classList.remove('open');
+  editingVideoIndex = null;
 }
 function saveNewVideo(){
   const id=document.getElementById('video-id-input').value.trim();
@@ -1213,13 +1244,19 @@ function saveNewVideo(){
   if(!id||!title||!thumb||!embedUrl){
     showToast('id, title, thumb, and embedUrl are all required.',true); return;
   }
-  if(VIDEO_ITEMS.some(v=>v.id===id)){
+  const dupIndex = VIDEO_ITEMS.findIndex(v=>v.id===id);
+  if(dupIndex!==-1 && dupIndex!==editingVideoIndex){
     showToast(`A video with id "${id}" already exists.`,true); return;
   }
-  VIDEO_ITEMS.push({ id, title, thumb, embedUrl, duration, resolution });
+  if(editingVideoIndex!==null){
+    VIDEO_ITEMS[editingVideoIndex] = { id, title, thumb, embedUrl, duration, resolution };
+    showToast('Video updated ✓');
+  } else {
+    VIDEO_ITEMS.push({ id, title, thumb, embedUrl, duration, resolution });
+    showToast('Video added ✓');
+  }
   saveVideoItems();
   closeAddVideoModal();
-  showToast('Video added ✓');
   if(currentAlbum==='__videos__') openVideoAlbum();
   if(document.getElementById('album-home').style.display!=='none') renderAlbumHome();
 }
