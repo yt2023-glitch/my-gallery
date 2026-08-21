@@ -294,6 +294,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 
 /* ── VIDEO ALBUM ────────────────────────────────────────────────────────── */
 .video-thumb{position:relative;border-radius:8px;overflow:hidden;cursor:pointer;background:#111;border:1px solid var(--border);aspect-ratio:16/9;transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease;z-index:1;}
+.video-thumb-topleft{position:absolute;top:6px;left:7px;display:flex;align-items:center;gap:6px;z-index:4;}
 .video-thumb-admin-actions{position:absolute;top:6px;right:6px;display:flex;gap:6px;z-index:4;}
 .video-thumb-action{width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.25);color:#eee;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 .video-thumb-action:hover{background:rgba(255,255,255,.2);}
@@ -305,7 +306,7 @@ header{padding:20px 40px;border-bottom:1px solid var(--border);display:flex;alig
 .video-thumb:hover .video-play-icon{background:rgba(0,0,0,.18);}
 .video-play-icon svg{width:52px;height:52px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.7));}
 .video-thumb-title{position:absolute;bottom:0;left:0;right:0;padding:8px 10px 7px;background:linear-gradient(to top,rgba(0,0,0,.82),transparent);font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.video-thumb-meta{position:absolute;top:6px;right:7px;background:rgba(0,0,0,.72);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-family:'DM Sans',sans-serif;}
+.video-thumb-meta{background:rgba(0,0,0,.72);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-family:'DM Sans',sans-serif;}
 .video-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));padding:18px 40px;}
 @media(max-width:600px){.video-grid{grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px;}}
 
@@ -1230,15 +1231,17 @@ function openVideoAlbum() {
           <polygon points="32,24 32,56 58,40" fill="white"/>
         </svg>
       </div>
-      ${v.duration ? `<div class="video-thumb-meta">${v.duration}</div>` : ''}
+      <div class="video-thumb-topleft">
+        ${v.duration ? `<div class="video-thumb-meta">${v.duration}</div>` : ''}
+        <button class="video-thumb-action" title="Video info" onclick="event.stopPropagation();openVideoInfoModal(${i})">ⓘ</button>
+      </div>
       <div class="video-thumb-title">${v.title}</div>
       <div class="video-thumb-admin-actions">
-        <button class="video-thumb-action" title="Video info" onclick="event.stopPropagation();openVideoInfoModal(${i})">ⓘ</button>
         <button class="video-thumb-action" title="Edit video" onclick="event.stopPropagation();openEditVideoModal(${i})">✎</button>
         <button class="video-thumb-action video-thumb-delete" title="Delete video" onclick="event.stopPropagation();deleteVideoItem(${i})">🗑</button>
       </div>
     `;
-    div.addEventListener('click', (e) => { if(e.target.closest('.video-thumb-admin-actions')) return; openVideoLb(i); });
+    div.addEventListener('click', (e) => { if(e.target.closest('.video-thumb-admin-actions')||e.target.closest('.video-thumb-topleft')) return; openVideoLb(i); });
     div.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openVideoLb(i); } });
     vg.appendChild(div);
   });
